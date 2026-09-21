@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { formatPKR } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Order, Product } from "@/lib/types";
 
@@ -55,6 +56,7 @@ export function OrderFormDialog({
   createdBy: string;
   onCreated: (order: Order) => void;
 }) {
+  const { t, isUr } = useT();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -117,11 +119,11 @@ export function OrderFormDialog({
 
   async function save() {
     if (!name.trim()) {
-      toast.error("Customer name is required.");
+      toast.error(t("customerNameRequired"));
       return;
     }
     if (lines.length === 0) {
-      toast.error("Add at least one item to the order.");
+      toast.error(t("addOneItem"));
       return;
     }
     setSaving(true);
@@ -137,52 +139,53 @@ export function OrderFormDialog({
           createdBy,
         }),
       });
-      toast.success(`Pre-order ${res.order.orderId} saved for ${res.order.customerName}.`);
+      toast.success(
+        isUr
+          ? `${res.order.orderId} ${t("orderSaved")} ${res.order.customerName}`
+          : `Pre-order ${res.order.orderId} ${t("orderSaved")} ${res.order.customerName}.`
+      );
       onCreated(res.order);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save the pre-order.");
+      toast.error(err instanceof Error ? err.message : t("couldNotSave"));
     } finally {
       setSaving(false);
     }
   }
 
   const dueChips: Array<{ label: string; iso: string | null }> = [
-    { label: "Today 5 PM", iso: nextAt(17) },
-    { label: "Tomorrow 12 PM", iso: nextAt(12) },
-    { label: "Tomorrow 5 PM", iso: nextAt(17) },
+    { label: t("chipToday5"), iso: nextAt(17) },
+    { label: t("chipTom12"), iso: nextAt(12) },
+    { label: t("chipTom5"), iso: nextAt(17) },
   ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rr-scroll max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">New pre-order</DialogTitle>
-          <DialogDescription>
-            Book items for a customer to pick up later — nothing leaves stock until the sale is
-            completed at the counter.
-          </DialogDescription>
+          <DialogTitle className="font-display text-xl">{t("nfTitle")}</DialogTitle>
+          <DialogDescription>{t("nfDesc")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className={cn("space-y-4", isUr && "rr-urdu")}>
           {/* Customer */}
           <div className="grid gap-2.5 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label htmlFor="order-name" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                Customer name *
+                {t("customerName")}
               </label>
               <Input
                 id="order-name"
                 ref={nameRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ali Raza"
+                placeholder={t("namePh")}
                 maxLength={80}
               />
             </div>
             <div className="space-y-1.5">
               <label htmlFor="order-phone" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                Phone
+                {t("phone")}
               </label>
               <Input
                 id="order-phone"
@@ -198,21 +201,21 @@ export function OrderFormDialog({
           {/* Items picker */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Items
+              {t("itemsLabel")}
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by product name or ID…"
+                placeholder={t("searchProductsPh")}
                 className="pl-9"
                 aria-label="Search products for the pre-order"
               />
             </div>
             <div className="rr-scroll flex max-h-36 flex-col gap-1 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
               {matches.length === 0 ? (
-                <p className="py-3 text-center text-xs text-muted-foreground">No products match.</p>
+                <p className="py-3 text-center text-xs text-muted-foreground">{t("noProductsMatch2")}</p>
               ) : (
                 matches.map((p) => (
                   <button
@@ -241,7 +244,7 @@ export function OrderFormDialog({
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold">{l.product.name}</p>
                       <p className="text-[11px] tabular-nums text-muted-foreground">
-                        {formatPKR(l.product.price)} each
+                        {formatPKR(l.product.price)} {t("each")}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -287,7 +290,7 @@ export function OrderFormDialog({
           {/* Pickup time */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Pickup time
+              {t("pickupTime")}
             </label>
             <div className="flex flex-wrap gap-1.5">
               {dueChips.map((c) => (
@@ -307,7 +310,7 @@ export function OrderFormDialog({
                   onClick={() => setDueInput("")}
                   className="rounded-full border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive/10"
                 >
-                  Clear time
+                  {t("clearTime")}
                 </button>
               ) : null}
             </div>
@@ -323,13 +326,13 @@ export function OrderFormDialog({
           {/* Note */}
           <div className="space-y-1.5">
             <label htmlFor="order-note" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Note
+              {t("note")}
             </label>
             <Textarea
               id="order-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Write “Happy Birthday Ayesha” on the cake"
+              placeholder={t("notePh")}
               rows={2}
               maxLength={300}
             />
@@ -339,7 +342,7 @@ export function OrderFormDialog({
           <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Order total
+                {t("orderTotal")}
               </p>
               <p className="font-display text-xl font-bold tabular-nums text-primary">
                 {formatPKR(total)}
@@ -351,7 +354,7 @@ export function OrderFormDialog({
               className="h-11 gap-2 rounded-xl px-6 font-bold"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save order"}
+              {saving ? t("saving") : t("saveOrder")}
             </Button>
           </div>
         </div>

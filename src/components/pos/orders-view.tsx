@@ -7,8 +7,10 @@ import {
   CheckCheck,
   ClipboardList,
   Loader2,
+  MessageCircle,
   Phone,
   Plus,
+  Printer,
   RefreshCw,
   ShoppingBag,
   Trash2,
@@ -28,21 +30,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { OrderFormDialog } from "@/components/pos/order-form-dialog";
+import { printOrderMemo } from "@/components/pos/order-memo";
 import { api } from "@/lib/api";
 import { formatDateTime, formatPKR, formatTime } from "@/lib/format";
 import { useCartIntent } from "@/lib/store";
+import { useLang, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CartItem, Order, OrderStatus, Product, Role } from "@/lib/types";
 
-const STATUS_META: Record<OrderStatus, { label: string; cls: string }> = {
-  PENDING: { label: "Pending", cls: "bg-warning text-white" },
-  READY: { label: "Ready", cls: "bg-[#2E7D4F] text-white" },
-  DONE: { label: "Picked up", cls: "bg-muted text-muted-foreground" },
-  CANCELLED: { label: "Cancelled", cls: "bg-destructive/10 text-destructive border border-destructive/30" },
-};
-
-/** Human "pickup" label for an order's due time. */
-function dueLabel(dueAt: string | null): { text: string; overdue: boolean } | null {
+/** Human "pickup" label for an order's due time (language-aware). */
+function dueLabel(
+  dueAt: string | null,
+  isUr: boolean,
+  tomorrowWord: string
+): { text: string; overdue: boolean } | null {
   if (!dueAt) return null;
   const due = new Date(dueAt);
   const now = new Date();
@@ -54,13 +55,45 @@ function dueLabel(dueAt: string | null): { text: string; overdue: boolean } | nu
   dayAfter.setDate(dayAfter.getDate() + 1);
   const overdue = due.getTime() < now.getTime();
   let text: string;
-  if (due >= todayStart && due < tomorrowStart) text = `Today ${formatTime(dueAt)}`;
-  else if (due >= tomorrowStart && due < dayAfter) text = `Tomorrow ${formatTime(dueAt)}`;
+  if (due >= todayStart && due < tomorrowStart)
+    text = `${isUr ? "آج" : "Today"} ${formatTime(dueAt)}`;
+  else if (due >= tomorrowStart && due < dayAfter)
+    text = `${tomorrowWord} ${formatTime(dueAt)}`;
   else text = formatDateTime(dueAt);
   return { text, overdue };
 }
 
+/** Normalise a Pakistani phone number for wa.me (03xx… → 923xx…). */
+function waNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0")) return `92${digits.slice(1)}`;
+  return digits;
+}
+
+/** Pre-filled WhatsApp confirmation message for the customer. */
+function waMessage(o: Order, pickupText: string | null): string {
+  const lines = o.items
+    .map((i) => `${i.quantity}× ${i.name} — ${formatPKR(i.subtotal)}`)
+    .join("\n");
+  return [
+    `Red Ribbons Bakery — Pre-order ${o.orderId}`,
+    ``,
+    `For: ${o.customerName}`,
+    ``,
+    lines,
+    ``,
+    `Total: ${formatPKR(o.total)}`,
+    pickupText ? `Pickup: ${pickupText}` : "",
+    ``,
+    `Pay at pickup. Thank you! 🎀`,
+  ]
+    .filter((l) => l !== "")
+    .join("\n");
+}
+
 export function OrdersView({ role, createdBy, onNavigate }: { role: Role; createdBy: string; onNavigate: (v: "pos") => void }) {
+  const { t, isUr } = useT();
+  const tomorrowWord = useLang((s) => (s.lang === "ur" ? "کل" : "Tomorrow"));
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<"ALL" | OrderStatus>("ALL");
@@ -79,9 +112,9 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
       setOrders(o.orders);
       setProducts(p.products);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to load pre-orders.");
+      toast.error(err instanceof Error ? err.message : t("unableLoadOrders"));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -118,7 +151,7 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
         (prev ?? []).map((o) => (o.id === order.id ? { ...o, status } : o))
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update the order.");
+      toast.error(err instanceof Error ? err.message : t("couldNotUpdate"));
     } finally {
       setBusyId(null);
     }
@@ -128,10 +161,10 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
     setBusyId(order.id);
     try {
       await api(`/api/orders/${order.id}`, { method: "DELETE" });
-      toast.success(`Order ${order.orderId} removed from the book.`);
+      toast.success(`${order.orderId} ${t("removedFromBook")}`);
       setOrders((prev) => (prev ?? []).filter((o) => o.id !== order.id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not remove the order.");
+      toast.error(err instanceof Error ? err.message : t("couldNotRemove"));
     } finally {
       setBusyId(null);
       setDeleteTarget(null);
@@ -155,35 +188,49 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
       else items.push({ productId: live.id, code: live.productId, name: live.name, price: live.price, stock: live.stock, quantity: qty });
     }
     if (items.length === 0) {
-      toast.error("Nothing from this order is in stock right now.");
+      toast.error(t("nothingInStock"));
       return;
     }
     setIntent(items, order.orderId);
     onNavigate("pos");
     if (dropped > 0) {
       toast.warning(
-        `${order.orderId} loaded — ${dropped} ${dropped === 1 ? "unit" : "units"} skipped (out of stock).`
+        isUr
+          ? `${order.orderId} ${t("loadedIntoPosToast")} ${dropped} ${t("skippedOutOfStock")}`
+          : `${order.orderId} ${t("loadedIntoPosToast")} ${dropped} ${dropped === 1 ? "unit" : t("units")} ${t("skippedOutOfStock")}`
       );
     }
   }
 
+  /** Print the kitchen/booking memo slip for this order. */
+  function printMemo(order: Order) {
+    printOrderMemo(order);
+    toast.success(t("memoPrinted"));
+  }
+
+  const statusLabel = (s: OrderStatus): string =>
+    s === "PENDING" ? t("stPending") : s === "READY" ? t("stReady") : s === "DONE" ? t("stPickedUp") : t("stCancelled");
+
   const openCount = counts.PENDING + counts.READY;
 
+  const FILTERS = ["ALL", "PENDING", "READY", "DONE", "CANCELLED"] as const;
+
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", isUr && "rr-urdu")}>
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-bold sm:text-3xl">Pre-orders</h1>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">{t("preOrdersTitle")}</h1>
           <p className="text-sm text-muted-foreground">
-            Orders on call — book now, pay at pickup.{" "}
+            {t("preOrdersSub")}{" "}
             {openCount > 0 ? (
               <>
-                <span className="font-bold text-foreground">{openCount}</span> open ·{" "}
-                {counts.PENDING} pending, {counts.READY} ready
+                <span className="font-bold text-foreground">{openCount}</span>{" "}
+                {t("openOrders")} · {counts.PENDING} {t("pendingWord")}, {counts.READY}{" "}
+                {t("readyWord")}
               </>
             ) : (
-              "The book is clear."
+              t("bookClear")
             )}
           </p>
         </div>
@@ -196,13 +243,13 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
             className="gap-2"
           >
             <RefreshCw className={cn("h-4 w-4", orders === null && "animate-spin")} />
-            Refresh
+            {t("refresh")}
           </Button>
           <Button
             onClick={() => setFormOpen(true)}
             className="gap-2 rounded-xl font-bold"
           >
-            <Plus className="h-4 w-4" /> New order
+            <Plus className="h-4 w-4" /> {t("newOrder")}
           </Button>
         </div>
       </div>
@@ -213,12 +260,12 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order ID, customer name or phone…"
+            placeholder={t("searchPreOrders")}
             className="sm:max-w-xs"
             aria-label="Search pre-orders"
           />
           <div className="rr-scroll flex gap-1.5 overflow-x-auto pb-0.5">
-            {(["ALL", "PENDING", "READY", "DONE", "CANCELLED"] as const).map((s) => (
+            {FILTERS.map((s) => (
               <button
                 key={s}
                 type="button"
@@ -226,11 +273,11 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                 className={cn(
                   "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
                   filter === s
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-secondary text-secondary-foreground hover:bg-accent"
                 )}
               >
-                {s === "ALL" ? "All" : STATUS_META[s].label}
+                {s === "ALL" ? t("allCaps") : statusLabel(s)}
                 <span className="ml-1.5 tabular-nums opacity-75">{counts[s]}</span>
               </button>
             ))}
@@ -241,31 +288,31 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
       {/* Orders */}
       {orders === null ? (
         <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading pre-orders…
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("loadingPreOrders")}
         </div>
       ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center">
           <ClipboardList className="mx-auto h-8 w-8 text-muted-foreground/40" />
           <p className="mt-2 font-semibold">
-            {search || filter !== "ALL" ? "No pre-orders match." : "No pre-orders yet."}
+            {search || filter !== "ALL" ? t("noPreOrdersMatch") : t("noPreOrders")}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {search || filter !== "ALL"
-              ? "Try a different search or filter."
-              : "Take a phone order with the “New order” button — it will show up here."}
+            {search || filter !== "ALL" ? t("tryDiffSearch") : t("takePhoneOrder")}
           </p>
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {visible.map((o) => {
-            const due = dueLabel(o.dueAt);
-            const meta = STATUS_META[o.status];
+            const due = dueLabel(o.dueAt, isUr, tomorrowWord);
             const live = o.status === "PENDING" || o.status === "READY";
+            const wa = o.customerPhone
+              ? `https://wa.me/${waNumber(o.customerPhone)}?text=${encodeURIComponent(waMessage(o, due?.text ?? null))}`
+              : null;
             return (
               <article
                 key={o.id}
                 className={cn(
-                  "rounded-xl border bg-card p-4 transition-shadow hover:shadow-md",
+                  "rounded-xl border bg-card p-4 transition-all hover:shadow-md",
                   o.status === "PENDING" && "border-l-4 border-l-warning",
                   o.status === "READY" && "border-l-4 border-l-[#2E7D4F]",
                   due?.overdue && live && "ring-1 ring-destructive/40"
@@ -277,8 +324,17 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                       <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground">
                         {o.orderId}
                       </span>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", meta.cls)}>
-                        {meta.label}
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                          o.status === "PENDING" && "bg-warning text-white",
+                          o.status === "READY" && "bg-[#2E7D4F] text-white",
+                          o.status === "DONE" && "bg-muted text-muted-foreground",
+                          o.status === "CANCELLED" &&
+                            "border border-destructive/30 bg-destructive/10 text-destructive"
+                        )}
+                      >
+                        {statusLabel(o.status)}
                       </span>
                       {due ? (
                         <span
@@ -292,7 +348,11 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                           )}
                         >
                           <AlarmClock className="h-3 w-3" />
-                          {due.overdue && live ? `Overdue · was ${due.text}` : `Pickup ${due.text}`}
+                          {due.overdue && live
+                            ? isUr
+                              ? `${t("overdueWord")} · ${due.text}`
+                              : `${t("overdueWord")} · was ${due.text}`
+                            : `${t("pickupWord")} ${due.text}`}
                         </span>
                       ) : null}
                     </div>
@@ -335,8 +395,27 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                   </p>
                 ) : null}
 
+                {/* Status progress (booked → ready → picked up) */}
+                {o.status !== "CANCELLED" ? (
+                  <div
+                    className="mt-3 flex items-center gap-1.5"
+                    role="img"
+                    aria-label={`Progress: ${statusLabel(o.status)}`}
+                  >
+                    <ProgressDot active title={t("stPending")} />
+                    <ProgressBar active />
+                    <ProgressDot
+                      active={o.status === "READY" || o.status === "DONE"}
+                      green
+                      title={t("stReady")}
+                    />
+                    <ProgressBar active={o.status === "DONE"} />
+                    <ProgressDot active={o.status === "DONE"} title={t("stPickedUp")} />
+                  </div>
+                ) : null}
+
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Taken by <span className="font-semibold">{o.createdBy}</span> ·{" "}
+                  {t("takenBy")} <span className="font-semibold">{o.createdBy}</span> ·{" "}
                   {formatDateTime(o.createdAt)}
                 </p>
 
@@ -347,20 +426,22 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                       size="sm"
                       variant="outline"
                       disabled={busyId === o.id}
-                      onClick={() => void setStatus(o, "READY", `${o.orderId} marked as ready.`)}
+                      onClick={() =>
+                        void setStatus(o, "READY", `${o.orderId} ${t("markedReady")}`)
+                      }
                       className="h-8 gap-1.5 rounded-lg border-[#2E7D4F]/40 text-xs font-bold text-[#2E7D4F] hover:bg-[#2E7D4F] hover:text-white"
                     >
-                      <Check className="h-3.5 w-3.5" /> Ready
+                      <Check className="h-3.5 w-3.5" /> {t("readyBtn")}
                     </Button>
                   ) : null}
                   {o.status === "READY" ? (
                     <Button
                       size="sm"
                       disabled={busyId === o.id}
-                      onClick={() => void setStatus(o, "DONE", `${o.orderId} picked up — nice!`)}
+                      onClick={() => void setStatus(o, "DONE", `${o.orderId} ${t("pickedUpDone")}`)}
                       className="h-8 gap-1.5 rounded-lg bg-[#2E7D4F] text-xs font-bold text-white hover:bg-[#256B43]"
                     >
-                      <CheckCheck className="h-3.5 w-3.5" /> Picked up
+                      <CheckCheck className="h-3.5 w-3.5" /> {t("pickedUpBtn")}
                     </Button>
                   ) : null}
                   {live && role === "SALESMAN" ? (
@@ -370,7 +451,33 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                       className="h-8 gap-1.5 rounded-lg text-xs font-bold"
                       title="Load these items into the counter cart"
                     >
-                      <ShoppingBag className="h-3.5 w-3.5" /> Load into POS
+                      <ShoppingBag className="h-3.5 w-3.5" /> {t("loadIntoPos")}
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => printMemo(o)}
+                    className="h-8 gap-1.5 rounded-lg text-xs font-bold"
+                    title="Print a memo slip for the kitchen / customer"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> {t("memo")}
+                  </Button>
+                  {wa ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      asChild
+                      className="h-8 gap-1.5 rounded-lg border-[#2E7D4F]/40 text-xs font-bold text-[#2E7D4F] hover:bg-[#2E7D4F]/10"
+                    >
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Send the order summary to the customer on WhatsApp"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                      </a>
                     </Button>
                   ) : null}
                   {live ? (
@@ -378,10 +485,10 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                       size="sm"
                       variant="outline"
                       disabled={busyId === o.id}
-                      onClick={() => void setStatus(o, "CANCELLED", `${o.orderId} cancelled.`)}
+                      onClick={() => void setStatus(o, "CANCELLED", `${o.orderId} ${t("cancelledDone")}`)}
                       className="h-8 gap-1.5 rounded-lg text-xs font-bold text-destructive hover:bg-destructive hover:text-white"
                     >
-                      <X className="h-3.5 w-3.5" /> Cancel
+                      <X className="h-3.5 w-3.5" /> {t("cancelBtn")}
                     </Button>
                   ) : (
                     <Button
@@ -391,7 +498,7 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                       onClick={() => setDeleteTarget(o)}
                       className="h-8 gap-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                      <Trash2 className="h-3.5 w-3.5" /> {t("removeBtn")}
                     </Button>
                   )}
                 </div>
@@ -416,23 +523,49 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove order {deleteTarget?.orderId}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the closed order from the pre-order book. Sales records are
-              not affected.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{`${t("removeBtn")} ${deleteTarget?.orderId}?`}</AlertDialogTitle>
+            <AlertDialogDescription>{t("removeOrderDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogCancel>{t("keepIt")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && void removeOrder(deleteTarget)}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              Remove
+              {t("removeConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Small status-progress dot. */
+function ProgressDot({ active, green, title }: { active: boolean; green?: boolean; title: string }) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "h-2.5 w-2.5 shrink-0 rounded-full transition-colors",
+        active
+          ? green
+            ? "bg-[#2E7D4F]"
+            : "bg-primary"
+          : "border border-border bg-muted"
+      )}
+    />
+  );
+}
+
+/** Connector line between progress dots. */
+function ProgressBar({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        "h-0.5 flex-1 rounded-full transition-colors",
+        active ? "bg-[#2E7D4F]/50" : "bg-border"
+      )}
+    />
   );
 }

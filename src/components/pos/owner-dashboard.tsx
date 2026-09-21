@@ -29,6 +29,147 @@ import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
 import type { View } from "@/components/pos/app-shell";
 
+/** One ranked row of the Best Sellers list (either scope). */
+function SellerRow({
+  rank,
+  name,
+  sub,
+  qty,
+  qtyLabel,
+  pct,
+  top,
+}: {
+  rank: number;
+  name: string;
+  sub: string;
+  qty: number;
+  qtyLabel: string;
+  pct: number;
+  top: boolean;
+}) {
+  return (
+    <div className="group border-b border-border/70 py-2.5 last:border-b-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className={cn(
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums",
+              top ? "bg-primary text-primary-foreground" : "bg-accent text-primary"
+            )}
+          >
+            {rank}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold leading-tight">{name}</p>
+            <p className="text-[11px] text-muted-foreground">{sub}</p>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-bold tabular-nums text-foreground">{formatNumber(qty)}</p>
+          <p className="text-[11px] text-muted-foreground">{qtyLabel}</p>
+        </div>
+      </div>
+      <div className="mt-1.5 ml-[38px] h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          role="img"
+          aria-label={`${name}: ${formatNumber(qty)} ${qtyLabel}`}
+          title={`${name} · ${formatNumber(qty)} ${qtyLabel}`}
+          style={{ width: `${pct}%` }}
+          className={cn("h-full rounded-full rr-grow", top ? "bg-gradient-to-r from-primary to-[#8E1620]" : "bg-primary/40")}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Best sellers card with a Today / All-time segmented switch. */
+function BestSellers({ stats, loading }: { stats: Stats | null; loading: boolean }) {
+  const [scope, setScope] = useState<"today" | "all">("all");
+  const todayTop = stats?.report.topItems ?? [];
+  const allTop = stats?.topProducts ?? [];
+
+  const todayMax = Math.max(...todayTop.map((i) => i.quantity), 1);
+  const allMax = Math.max(...allTop.map((p) => p.soldQuantity), 1);
+
+  return (
+    <div className="rounded-xl border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+          <Crown className="h-5 w-5 text-primary" />
+          Best Sellers
+        </h2>
+        {/* Segmented scope switch */}
+        <div className="flex rounded-full border bg-muted/60 p-0.5" role="tablist" aria-label="Best sellers scope">
+          {(
+            [
+              { key: "today" as const, label: "Today" },
+              { key: "all" as const, label: "All-time" },
+            ]
+          ).map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={scope === s.key}
+              onClick={() => setScope(s.key)}
+              className={cn(
+                "rounded-full px-3.5 py-1 text-xs font-bold transition-all",
+                scope === s.key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {scope === "today" ? (
+        todayTop.length > 0 ? (
+          <div className="mt-3 grid gap-x-8 md:grid-cols-2">
+            {todayTop.map((i, idx) => (
+              <SellerRow
+                key={i.name}
+                rank={idx + 1}
+                name={i.name}
+                sub={`${formatPKR(i.revenue)} today`}
+                qty={i.quantity}
+                qtyLabel="sold today"
+                pct={Math.max(6, Math.round((i.quantity / todayMax) * 100))}
+                top={idx === 0}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {loading ? "Loading…" : "No items sold yet today — the first sale will lead this list."}
+          </p>
+        )
+      ) : allTop.length > 0 ? (
+        <div className="mt-3 grid gap-x-8 md:grid-cols-2">
+          {allTop.map((p, i) => (
+            <SellerRow
+              key={p.id}
+              rank={i + 1}
+              name={p.name}
+              sub={`${p.category} · ${formatPKR(p.price)}`}
+              qty={p.soldQuantity}
+              qtyLabel="sold"
+              pct={Math.max(6, Math.round((p.soldQuantity / allMax) * 100))}
+              top={i === 0}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {loading ? "Loading…" : "No sales recorded yet — best sellers will appear here."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Mini 7-day bar strip — pure CSS, no chart library. */
 function TrendStrip({ stats }: { stats: Stats }) {
   const trend = stats.trend;
@@ -394,75 +535,8 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
         </div>
       </div>
 
-      {/* Recent transactions */}
-      <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-display text-lg font-bold">
-            <Crown className="h-5 w-5 text-primary" />
-            Best Sellers
-          </h2>
-          <p className="text-xs text-muted-foreground">All-time units sold</p>
-        </div>
-        {stats && stats.topProducts.length > 0 ? (
-          <div className="mt-3 grid gap-x-8 md:grid-cols-2">
-            {stats.topProducts.map((p, i) => {
-              const max = Math.max(...stats.topProducts.map((x) => x.soldQuantity), 1);
-              const pct = Math.max(6, Math.round((p.soldQuantity / max) * 100));
-              return (
-                <div
-                  key={p.id}
-                  className="group border-b border-border/70 py-2.5 last:border-b-0"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span
-                        className={cn(
-                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums",
-                          i === 0
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-accent text-primary"
-                        )}
-                      >
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {p.category} · {formatPKR(p.price)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-bold tabular-nums text-foreground">
-                        {formatNumber(p.soldQuantity)}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">sold</p>
-                    </div>
-                  </div>
-                  <div className="mt-1.5 ml-[38px] h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      role="img"
-                      aria-label={`${p.name}: ${p.soldQuantity} sold`}
-                      title={`${p.name} · ${formatNumber(p.soldQuantity)} sold all-time`}
-                      style={{ width: `${pct}%` }}
-                      className={cn(
-                        "h-full rounded-full rr-grow",
-                        i === 0
-                          ? "bg-gradient-to-r from-primary to-[#8E1620]"
-                          : "bg-primary/40"
-                      )}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {loading ? "Loading…" : "No sales recorded yet — best sellers will appear here."}
-          </p>
-        )}
-      </div>
+      {/* Best sellers — today vs all-time */}
+      <BestSellers stats={stats} loading={loading} />
 
       {/* Recent transactions */}
       <div className="rounded-xl border bg-card p-5">

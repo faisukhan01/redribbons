@@ -1,0 +1,181 @@
+     1→     1→# Red Ribbons Bakery POS — Worklog
+     2→     2→
+     3→     3→---
+     4→     4→
+     5→     5→Task ID: 1
+     6→     6→Agent: Z.ai Code (main)
+     7→     7→Task: Build complete Red Ribbons Bakery POS system (Next.js 16 + TS + Tailwind 4 + shadcn/ui + Prisma/SQLite), brand-derived from the official logo, push to GitHub.
+     8→     8→
+     9→     9→Work Log:
+    10→    10→- Analyzed official logo (`upload/pasted_image_1789989303119.png`); extracted brand palette programmatically: primary red #A91A24, deep red #7A0F15, cream #FCF7F1.
+    11→    11→- `scripts/process_logo.py`: removed cream background via scipy flood-fill (border-connected + enclosed letter counters), feathered anti-aliased edges, decontaminated fringe, split monogram (`public/logo-mark.png`) from full logo (`public/logo.png`), generated `public/favicon.png`. All transparent PNGs — logo untouched otherwise.
+    12→    12→- Prisma schema: `User` (username/name/role/pin), `Product` (unique human `productId`, price, stock, soldQuantity), `Sale` (unique `saleId` RR-XXXXXX, salesman, total, paymentMethod CASH|ONLINE, amountReceived, changeReturned), `SaleItem` (name snapshot, qty, price, subtotal). Pushed to `db/custom.db`.
+    13→    13→- `src/lib/seed.ts`: idempotent auto-seed — 2 users (Abdullah/OWNER pin 1234, Ahmed/SALESMAN pin 1111), 29 realistic bakery products across Bakery/Cakes/Sweets/Snacks, 8 deterministic demo sales for today.
+    14→    14→- APIs: `/api/auth/login`, `/api/products` (GET/POST), `/api/products/[id]` (PATCH update/restock, DELETE with sales-record guard), `/api/products/import` (server-side re-validation, per-row skips), `/api/sales` (GET; POST = atomic `$transaction`: stock check → total from DB prices → cash/online validation → sequential RR sale ID → create sale+items → decrement stock/increment sold), `/api/stats?tzOffset=` (today's sales/cash/online/items/products/stock/stockValue/recent, timezone-aware day boundary).
+    15→    15→- Theme: brand palette in `globals.css` (cream bg, red primary, warm ink, success green, warning amber), Playfair Display (brand/headings) + Montserrat (UI) via next/font, custom scrollbars (`rr-scroll`), ribbon-tinted login bg, shake/pop animations.
+    16→    16→- Frontend SPA (single `/` route, role-based views, zustand-persisted session):
+    17→    17→  - Login: role cards → 4-digit PIN pad (auto-submit, shake on error).
+    18→    18→  - Owner: Dashboard (hero Today's Sales, 6 stat cards, payment split bar, recent transactions), Inventory (summary cards, search/category filter, responsive table→cards, low/out-of-stock badges), Sales (Today/All filter, full receipt cards), Products (Add/Edit dialog, restock, delete w/ confirm, Import Excel + Import CSV with client parse via `xlsx`, validation preview, per-row error report, server duplicate guard, sample template download).
+    19→    19→  - Salesman POS: prominent Product ID input (live preview: name/price/available, Enter-to-add), name search + category chips + product tiles, cart (steppers clamped to stock, remove, clear), total, CASH/ONLINE toggle, cash quick-chips (500/1000/2000/5000/Exact), auto change calc, insufficient-payment warning, COMPLETE SALE → success screen (sale ID, total, payment, received, change, items) → New Sale. Mobile: sticky checkout bar → bottom Sheet checkout.
+    20→    20→  - App shell: sticky header w/ logo lockup + nav, mobile bottom nav, sticky footer (verified sticks when short, pushes when long).
+    21→    21→- Verification (agent-browser): login flows, full cash sale (RR-000009: 2×Fresh Bread + 1×Chicken Patties + 1×Chocolate Cake = 1,620, paid 2,000, change 380), stock decrement verified (48→46), insufficient-stock guard toast + qty clamp, insufficient-payment rejection, CSV import (2 imported, duplicate + bad row skipped), add product dialog, mobile POS sale (RR-000010), mobile dashboard, no horizontal overflow at 390px (fixed grid-item min-w-0 bug + input min-w-0), footer behavior, ESLint clean.
+    22→    22→- Fixed during verification: salesman session reload rendered blank (view state now initialized from rehydrated role); stale Turbopack CSS chunk (cache cleared, server restarted detached via setsid).
+    23→    23→
+    24→    24→Stage Summary:
+    25→    25→- Working POS at `/` with two portals; all numbers from DB; brand identity derived strictly from logo.
+    26→    26→- Demo logins: Owner PIN 1234 · Salesman PIN 1111 (displayed on login screen).
+    27→    27→- DB auto-seeds on first API call when empty; reset = delete `db/custom.db` + `bun run db:push` + restart dev server (server caches the old file handle otherwise).
+    28→    28→- Note for Vercel: SQLite is file-based; for production cloud deploy consider swapping Prisma datasource — code is env-driven via `DATABASE_URL`.
+    29→    29→
+    30→    30→---
+    31→    31→Task ID: 2
+    32→    32→Agent: Z.ai Code (main)
+    33→    33→Task: Publish & handover
+    34→    34→
+    35→    35→Work Log:
+    36→    36→- Reset database to pristine seed (29 products, 8 demo sales, Rs. 4,180 today) and restarted dev server detached (setsid bun run dev).
+    37→    37→- Pushed full project to GitHub: https://github.com/faisukhan01/redribbons (branch main, commit 6ba8431, 110 files). Token kept only in local .git/config; .env, db file, dev.log, worklog excluded via .gitignore.
+    38→    38→- Created recurring webDevReview cron job (fixed_rate 900s, job_id 403174) with the mandatory review prompt.
+    39→    39→
+    40→    40→Stage Summary:
+    41→    41→- App live on port 3000, lint-clean, browser-verified, source on GitHub, 15-min QA cron active.
+    42→    42→---
+    43→    43→Task ID: 3
+    44→    44→Agent: webDevReview (cron round 1)
+    45→    45→Task: Assess status, QA via agent-browser, then continue development (styling details + new features).
+    46→    46→
+    47→    47→Work Log:
+    48→    48→- Status assessment: server healthy, no runtime errors, seed state clean. QA pass over login/dashboard/sales found no bugs (disabled COMPLETE SALE correctly blocks empty cash input — verified).
+    49→    49→- FEATURE — Receipt system: new `src/components/pos/receipt.tsx` (80mm thermal-style receipt: brand header with logo, sale meta, itemized lines with @-price for qty>1, totals, change, thank-you footer, dashed dividers). `printReceipt()` renders via createPortal to a dedicated .rr-print-root + window.print(); `@media print` rules in globals.css hide everything else and format 80mm. Integrated into: POS success screen (Print Receipt button + receipt as the success visual) and Sales History (per-sale "Receipt" button → preview dialog → print). Verified print DOM mounts + cleans up; headless print is a no-op.
+    50→    50→- FEATURE — Low Stock Watchlist on Owner Dashboard: stats API now returns `lowStock` (stock ≤ 5, asc, top 6); dashboard shows amber/red chips ("3 left"/"OUT") with product, code, category, price, "Open inventory" link, and an all-good green state when nothing is low. Seed adjusted: Gajar Halwa stock 3, Black Forest Cake stock 4; DB reset to apply.
+    51→    51→- STYLING — details: StatCard icons now sit in red-tinted rounded chips with hover border tint; hero "Today's Sales" card got diagonal ribbon stripes + soft glow; login card got a brand ribbon gradient top bar; POS live-preview got a 4px red left accent; COMPLETE SALE + NEW SALE buttons got ribbon gradient + deeper hover shadow; product tiles lift on hover with soft shadow; SheetContent got sr-only SheetDescription (fixes radix aria warning).
+    52→    52→- Verification: fresh sale RR-000009 (Bun + Chicken Patties = Rs. 220, paid 500, change 280) completed via browser; receipt renders on success screen; watchlist shows both low items; ESLint clean.
+    53→    53→
+    54→    54→Stage Summary:
+    55→    55→- App remains lint-clean, browser-verified, DB freshly seeded (29 products incl. 2 low-stock demos, 8 demo sales).
+    56→    56→- Current goals for next round: receipt print pipeline is browser-only (window.print) — physical thermal printer would need OS-level setup; potential next features: quick "restock" action from the watchlist, sales-by-day trend strip (kept simple), or i18n (Urdu labels) if requested.
+    57→    57→- Risks: none known. window.print() in headless QA is a no-op — print correctness should be spot-checked on real hardware once.
+    58→    58→
+    59→    59→---
+    60→    60→Task ID: 4
+    61→    61→Agent: webDevReview (cron round 2)
+    62→    62→Task: Status assessment + QA via agent-browser, then new features & styling polish.
+    63→    63→
+    64→    64→Work Log:
+    65→    65→- Status assessment: dev server healthy (200), ESLint clean, no console/page errors. Browser QA re-verified login (both roles), dashboard, POS cash sale, receipt rendering — no bugs found. Proceeded to feature work.
+    66→    66→- FEATURE — Quick Restock from Low-Stock Watchlist: each watchlist chip on Owner dashboard now has a "+10" button (PATCH /api/products/:id {addStock:10}); per-item loading state, success/error toasts, stats auto-refresh, watchlist re-renders (item leaves list when stock > 5). Verified: Gajar Halwa 3→13, row removed from watchlist. Tip line points to Inventory → Restock for custom amounts.
+    67→    67→- FEATURE — Last 7 Days trend strip (Owner dashboard): /api/stats now returns `trend` (7 buckets, timezone-aware day boundaries, client tzOffset); pure-CSS bar chart (no chart lib) — red bars, today highlighted w/ gradient + glow, value labels, weekday labels, hover title/aria, week total + count + best-day footer.
+    68→    68→- FEATURE — Hold/Park Sale (POS): new persisted zustand store `useHeldSales` (max 12, survives reload). Cart header got "Hold" (pause icon, amber hover); parked orders render as amber chips above cart (total, item count, time, play icon to resume, X to discard). Resume re-clamps quantities against live stock (drops out-of-stock lines with a toast), and if the counter cart is active the two SWAP (current cart auto-parked). Wired into both desktop cart panel and mobile checkout Sheet.
+    69→    69→- FEATURE — Export CSV: new `src/lib/csv.ts` (escape/toCSV/downloadCSV/BOM for Excel, todayStamp). Sales History "Export CSV" (Sale ID, DateTime, Salesman, Payment, Items, Item Detail, Total, Received, Change — respects Today/All filter). Inventory "Export CSV" (ProductID, Name, Category, Price, Stock, Sold, StockValue).
+    70→    70→- STYLING — details: StatCard got animated brand accent line on hover + icon chip inverts to red; Recent Transactions now 2-col grid with row dividers; inventory low/out-of-stock rows tinted amber/red; inventory subtitle shows "N need restocking."; POS Product ID input got kbd "Enter ↵" hint (hidden while typing); cart empty state upgraded (icon in accent circle + clearer copy); singular/plural fixes ("1 item in cart") in sticky bar + cart badge.
+    71→    71→- Verification (agent-browser): +10 restock PATCH + watchlist update; hold→new order→resume swap→complete (RR-000011 Rs. 300 cash, change 200); parked order persists after sale + discard works; export CSV clicks clean (no errors); mobile 390px no horizontal overflow (scrollWidth 390), sheet checkout + exact-cash sale RR-000012; ESLint clean throughout.
+    72→    72→
+    73→    73→Stage Summary:
+    74→    74→- App lint-clean, browser-verified; DB now has 29 products, 11 sales today (9 demo + 3 QA), Gajar Halwa restocked to 13.
+    75→    75→- Remaining risks: none known. CSV downloads happen client-side (standard Blob pattern); headless QA can't capture files, but click path is error-free — spot-check on real machine once.
+    76→    76→- Next-phase candidates: Urdu label toggle, receipt "reprint last" shortcut, daily Z-report (end-of-day summary print), or per-category best-sellers strip.
+    77→    77→
+    78→    78→---
+    79→    79→Task ID: 5
+    80→    80→Agent: webDevReview (cron round 3)
+    81→    81→Task: Status assessment + browser QA, then End-of-Day report, Best Sellers, POS qty quick-add, styling polish.
+    82→    82→
+    83→    83→Work Log:
+    84→    84→- Status assessment: dev server healthy (200), ESLint clean, zero console/page errors. Full browser QA re-verified: both logins (incl. wrong-PIN error message), owner dashboard (stats/trend/watchlist/recent), POS product-ID lookup with live preview, invalid-ID error ("No product found with ID 215"), ONLINE payment sale end-to-end (RR-000013 Rs. 1,320, receipt shows "Paid online") — first time the online path was browser-verified. No bugs found.
+    85→    85→- FEATURE — End-of-Day (Z) Report: /api/stats now returns `report` (cashCount, onlineCount, changeGiven, topItems[5] grouped from today's sale items) + `topProducts` (top 6 by all-time soldQuantity). New `src/components/pos/z-report.tsx`: thermal-style report (brand header, dashed "END OF DAY REPORT" stamp, business date, closed-by from session, gross sales, payment summary with per-method transaction counts, change given, NET DRAWER (CASH) = cash − change, top items with qty × revenue, restock note, footer) + printZReport() print pipeline + ZReportDialog preview. Buttons on Owner dashboard header AND Sales History header (lazy-loads stats on first open). Verified visually: dialog renders perfectly, math correct (3,570 cash − 2,470 change = 1,100 net).
+    86→    86→- FEATURE — Best Sellers card (Owner dashboard): all-time top 6 by units sold; rank chips (#1 filled red), name/category/price, units "sold" count, animated progress bars (new `rr-grow` keyframe in globals.css, 0.9s ease-out), aria-labels + titles, empty state. Verified desktop + mobile.
+    87→    87→- FEATURE — POS quantity quick-add: Product ID input now accepts "101*3" / "101x3" (regex, 1–999 clamped); live preview shows "3 × Rs. 120 = Rs. 360"; Enter/ADD adds the multiplied qty (stock-clamped as before). Placeholder + header tip pill ("Tip: '101*3' adds 3 at once", md+ only). Verified: RR-000014 = 3× Fresh Bread Rs. 360, paid 500, change 140.
+    88→    88→- STYLING — details: success screen got a "tear-here" perforation line with scissors icon above the receipt; EOD/Refresh button group in dashboard header (EOD in brand-red outline style); best-sellers bars with #1 gradient; EOD button in Sales History toolbar.
+    89→    89→- Verification: agent-browser pass on all new features (desktop 1280px + mobile 390px, scrollWidth 390 = no overflow); print click paths error-free; ESLint clean.
+    90→    90→
+    91→    91→Stage Summary:
+    92→    92→- App lint-clean, browser-verified; DB has 29 products, 14 sales today (9 demo + 5 QA), Black Forest Cake still low (4).
+    93→    93→- Next-phase candidates: Urdu label toggle, per-sale discount (needs spec decision), receipt bakery address/phone line (needs real data), backup/export DB button for owner.
+    94→    94→- Risks: none known; window.print() is a no-op in headless QA — spot-check Z-report + receipt on real printer once.
+    95→    95→
+    96→    96→---
+    97→    97→Task ID: 6
+    98→    98→Agent: webDevReview (cron round 4)
+    99→    99→Task: Status assessment + browser QA, then counter productivity features (shortcuts, search, PIN change, backup/restore) + styling polish.
+   100→   100→
+   101→   101→Work Log:
+   102→   102→- Status assessment: dev server healthy (200), ESLint clean, zero console/page errors. Browser smoke test: salesman login → product-ID quick-add → hold/resume → cash sale — all correct (no bugs found). Proceeded to feature work.
+   103→   103→- FEATURE — Counter keyboard shortcuts (POS): F2 focuses Product ID input, F3 toggles CASH/ONLINE, F4 parks the current cart (stale-closure-safe via ref), "/" focuses product search, Esc clears the ID input. Kbd hint chips shown in the POS header (lg+). Verified F2/F3/F4/Esc live in browser.
+   104→   104→- FEATURE — Salesman day strip: POS header shows the logged-in salesman's own day (sales count, revenue, items sold) as compact chips; /api/sales now accepts `salesman` + `since` params; refreshes after each completed sale. Verified updates 15→16 sales / Rs. 7,630→8,570.
+   105→   105→- FEATURE — Sales History search + payment filter: search box matches sale ID, item name or salesman; All/Cash/Online segmented filter; empty state distinguishes "no match" vs "no sales"; summary line reflects filtered totals (verified: Online → "3 sales · Rs. 3,120 total"). Sale cards got item-count badges.
+   106→   106→- FEATURE — Change PIN: new POST /api/auth/change-pin (validates 4–6 digits, current PIN check, different-from-old). Header user block is now a button (key icon on mobile) opening an Account dialog with current/new/repeat PIN, inline errors. Browser-verified: wrong-PIN error shown, change to 5678 works (login API confirmed), reverted to 1234.
+   107→   107→- FEATURE — Backup & Restore (owner-only, header menu): GET /api/backup = full JSON snapshot (products + sales + item lines, human product IDs); POST = transactional restore with strict validation (app tag, duplicate/invalid rows rejected) + per-line skip fallback. UI: dropdown "Backup" (icon-only on mobile) → Download backup (JSON blob) / Restore backup… (file picker + destructive AlertDialog confirm, reload after). Round-trip verified via API: 29 products / 16 sales / 22 items, 0 skipped; invalid payloads rejected cleanly; data intact after restore.
+   108→   108→- FEATURE — Hero "vs yesterday": /api/stats now returns yesterdayTotal (timezone-aware); hero card shows a delta pill ("▲ 12% vs yesterday" / "First sale of the week" when yesterday = 0). Verified pill renders.
+   109→   109→- STYLING — details: ribbon-confetti on sale success (8 brand-colored CSS pieces, prefers-reduced-motion respected) + "press Enter to start the next sale" hint (Enter works on success screen); trend strip empty-state (dashed card + hint when 7-day total = 0); sale card item badges; login screen got physical-keyboard PIN entry (digits/Backspace/Escape, auto-submit at 4) with hint text + "Red Ribbons POS · v1.1" chip; header icons (account key, backup) now reachable on mobile with zero 390px overflow (scrollWidth 390).
+   110→   110→- Verification: agent-browser pass over desktop 1280px + mobile 390px — shortcuts, day strip refresh, sale completion (RR-000016: 2×Fresh Bread + 1×Milk Cake Rs. 940, paid 1,000, change 60), search/filter, PIN change, backup API round-trip, Z-report still correct (8,570 = 5,450 + 3,120; net drawer 2,860). ESLint clean.
+   111→   111→
+   112→   112→Stage Summary:
+   113→   113→- App lint-clean, browser-verified; DB has 29 products, 16 sales today (9 demo + 7 QA); owner PIN back to demo 1234.
+   114→   114→- Remaining risks: none known. CSV/JSON downloads are client-side Blobs (headless QA can't capture files — click paths verified error-free). window.print() no-op in headless — spot-check receipt + Z-report on real printer once.
+   115→   115→- Next-phase candidates: Urdu label toggle, per-sale discount (needs spec), receipt bakery address/phone line (needs real data), printer page for thermal roll width tuning.
+   116→   116→
+   117→   117→---
+   118→   118→Task ID: 7
+   119→   119→Agent: webDevReview (cron round 5)
+   120→   120→Task: Status assessment + browser QA, then per-sale discount, receipt shop settings, staff sales breakdown + styling polish.
+   121→   121→
+   122→   122→Work Log:
+   123→   123→- Status assessment: server healthy, ESLint clean, no runtime errors on fresh load (a stale console entry from the previous session was verified as pre-reload noise). Proceeded to feature work.
+   124→   124→- SCHEMA — Sale.discount (Float, default 0) + new Setting model (key/value: shopPhone, shopAddress, receiptNote); pushed to SQLite.
+   125→   125→- FEATURE — Per-sale discount: POST /api/sales accepts `discount` (clamped ≥ 0, rejected if > item subtotal with clear 400; total = subtotal − discount rounded to paisa; stored on the sale). POS cart got a "Discount" chip next to the total → expands to an inline panel with Rs. input + quick % chips (5/10/20 computed from subtotal) + "Max" hint + remove button; totals block shows Subtotal → Total when a discount is active; mobile sticky bar and checkout sheet use the discounted payable. Held/parked sales carry the discount input and re-clamp on resume. Verified end-to-end: RR-000018 = 820 − 82 (10%) = 738 exact cash, and mobile RR-000019 = 150 − 15 = 135; over/negative discount rejected via API.
+   126→   126→- FEATURE — Receipt shop details: new GET/PUT /api/settings (trimmed, 200-char cap) + zustand `useShopSettings` cache; new owner "Receipt Details" dialog (Store icon in header) with phone/address/footer-note fields and a live preview; Receipt component prints address + ☎ phone under the brand header, replaces the default footer tagline with the note when set, and always adds an Urdu thank-you line (شکریہ! دوبارہ تشریف لائیں, rtl). Z-report header also shows the phone. Verified: settings PUT/GET round-trip, dialog preview, receipt renders all lines.
+   127→   127→- FEATURE — Staff sales today: /api/stats now groupBy salesman for today (`staffToday`) + `report.discountTotal` (sum of discounts on discounted sales only). Owner dashboard Payment Split card got a "Staff sales today" section (name, total, sales count, animated share bar). Z-report payment summary got a "Discounts given" line when > 0 and a per-salesman "Staff sales today" block when > 1 salesman sold. Verified: discountTotal 100, staffToday Ahmed 17 sales Rs. 8,710, Z-report math (5,590 − 3,450 = 2,140 net).
+   128→   128→- Backup v1 files now include `settings` and `discount` per sale; restore upserts settings and recreates discounts.
+   129→   129→- FIXED during round: dev server held the old Prisma client after `db:push` (db.setting undefined → settings API 500) — restarted server detached; missing `useShopSettings` import in pos-view caused a runtime overlay — import added, error cleared.
+   130→   130→- STYLING — details: discount chip/panel in brand-green success tones (#EAF4EE/#2E7D4F) with hover states; sales-history sale cards show a "Discount applied: − Rs. X" pill; CSV export gained a Discount column; receipt preview panel in settings dialog; header Store icon button (owner) matches the Backup icon button.
+   131→   131→- Verification: agent-browser pass desktop 1280px + mobile 390px (checkout sheet discount panel, scrollWidth 390); ESLint clean; no page errors.
+   132→   132→
+   133→   133→Stage Summary:
+   134→   134→- App lint-clean, browser-verified; DB has 29 products, 19 sales today; settings seeded with sample shop info (phone 0300 1234567, Shop 12 Main Bazaar Lahore) — owner should replace with real data via the Store icon dialog.
+   135→   135→- Remaining risks: none known. window.print() no-op in headless — spot-check receipt + Z-report (now with discount/staff lines) on real printer once.
+   136→   136→- Next-phase candidates: Urdu label toggle (full i18n), per-item discount or staff-assignment for owner edits, thermal-printer width tuning page, or a simple "customers / orders-on-call" notebook if the bakery wants phone orders.
+   137→   137→
+   138→   138→---
+   139→   139→Task ID: 8
+   140→   140→Agent: webDevReview (cron round 6)
+   141→   141→Task: Status assessment + browser QA, then keyboard-PIN fix, Urdu counter language, reprint-last-receipt, receipt paper width, count-up hero + styling polish.
+   142→   142→
+   143→   143→Work Log:
+   144→   144→- Status assessment: server healthy (200), ESLint clean, no console/page errors. QA smoke: salesman session restored, quick-add "105*2" (Bun Rs. 40 ×2 = Rs. 80) correct, cash sale RR-000020 completed with change Rs. 20, stock 93→91 verified. No blocking bugs found.
+   145→   145→- QA FINDING — keyboard PIN entry: rapid `keyboard type` PIN appeared to fail. Investigation showed agent-browser's keyboard type dispatches 0 keydown events in this headless env (verified with a window listener) — a QA-tool artifact, not a UI bug; real key events (`press`) log in fine. Still hardened the login: pressKey now reads a pinRef mirror instead of the state closure, so rapid keydowns that land in one React batch can never submit a wrong (stale) PIN. Wrong-PIN error, shake, and auto-submit verified.
+   146→   146→- FEATURE — Counter language toggle (اردو/English): new src/lib/i18n.ts (persisted zustand useLang + useT hook, ~45 counter strings in EN/UR). Toggle pill in POS header (Languages icon; shows "اردو" in EN mode, "English" in UR). Translated: header title/flow/tip, kbd hint labels, day-strip chips, PRODUCT ID label + ADD, live preview (Available / Press Enter), not-found message, search placeholder, category "All", loading/empty states, checkout sheet title, mobile sticky bar. CartPanel fully translated (Current Sale, Hold/Clear, Parked orders, empty state, Subtotal/Total/Discount/Max/Max stock, Cash/Online, Customer Gives, quick chips/Exact, Change/Insufficient/Remaining, Complete Sale). SaleSuccess translated (title, thanks line, Print Receipt, New Sale). Urdu styling guard in globals.css (.rr-urdu: letter-spacing:normal so tracking classes can't split Arabic-script joining + line-height 1.65 for taller glyphs).
+   147→   147→- FEATURE — Reprint last receipt: new persisted useLastSale store (set after each completed sale, survives reload); "Last receipt"/"پچھلی رسید" pill button in POS header (only when a sale exists) → new ReprintDialog (scrollable receipt preview + Print again via printReceipt). Verified: dialog shows RR-000021 preview, print path clean.
+   148→   148→- FEATURE — Receipt paper width: Setting key paperWidth ("80" default / "58") added to types, settings API (strict whitelist+clamp), backup restore (clamped), ShopSettings type. Receipt Details dialog got a 80mm/58mm radio-card selector with per-width hints. Receipt component renders max-w-[220px] + rr-receipt--58 in 58 mode; new print rule prints at 58mm. Verified: set 58 → saved to DB, success receipt rendered 220px wide with class; restored to 80 after testing.
+   149→   149→- FEATURE/STYLING — CountUp: new animated count-up component in shared.tsx (rAF-driven ease-out cubic, respects prefers-reduced-motion, aria-label carries the final value); wired into the dashboard hero "Today's Sales" (0→Rs. 9,663 on load; animates deltas on refresh). Refactored once to satisfy the react-hooks/set-state-in-effect lint rule (all state updates inside rAF ticks; early-return when converged).
+   150→   150→- STYLING — details: ProductTile now tints by stock level — out-of-stock tiles get destructive border+wash, ≤5 stock get amber border/hover (Black Forest Cake verified); i18n fix "items items sold" → "items sold" (dictionary keys item/items/itemsSold recomposed).
+   151→   151→- Verification: agent-browser pass at 390px (no overflow, scrollWidth 390) and 1280px desktop (scrollWidth 1280, desktop cart + kbd hints visible); full Urdu sale RR-000021 via checkout sheet (نقد, گاہک نے دیے, سیل مکمل کریں, change math correct) + English desktop sale RR-000022 (2× Fresh Bread Rs. 240, paid 500, change 260); reprint dialog both languages; ESLint clean; dev.log clean (sales 201, no errors).
+   152→   152→
+   153→   153→Stage Summary:
+   154→   154→- App lint-clean, browser-verified; DB has 29 products, 22 sales today; paperWidth reset to 80, language back to EN, owner PIN 1234 / salesman PIN 1111 unchanged.
+   155→   155→- Risks: none known. agent-browser cannot dispatch real keydown via `keyboard type` (use `press`) and window.print() is a no-op headless — spot-check receipt/Z-report on real printer once. Urdu font falls back to system Arabic-script fonts (no bundled Urdu webfont; Noto Nastaliq/Naskh would be a heavy optional add).
+   156→   156→- Next-phase candidates: per-item discount or owner price-edit audit, phone-order (orders-on-call) notebook, thermal width tuning live-preview page, or bundling Noto Nastaliq Urdu subset for prettier receipts.
+   157→   157→
+   158→   158→---
+   159→   159→Task ID: 9
+   160→   160→Agent: webDevReview (cron round 7)
+   161→   161→Task: Status assessment + browser QA, then pre-orders / orders-on-call notebook (schema, API, UI, POS hand-off) + styling polish.
+   162→   162→
+   163→   163→Work Log:
+   164→   164→- Status assessment: server healthy, ESLint clean, DB as expected (29 products / 22 sales). Browser QA: full cash sale RR-000023 completed (1× Fresh Bread Rs. 120, paid 500, change 380); no console/page errors. Stable → proceeded to feature work.
+   165→   165→- SCHEMA — new `Order` model (unique orderId "RO-XXXXXX", customerName/Phone, itemsJson snapshot lines [{code,name,quantity,price,subtotal}], total, status PENDING|READY|DONE|CANCELLED, dueAt, note, createdBy); pushed to SQLite. NOTE: after any db:push the dev server must be restarted or the Prisma client is stale.
+   166→   166→- API — `/api/orders` (GET ?status=&limit=; POST validates name, phone regex, ≥1 item, resolves codes → snapshot prices, sequential RO id) + `/api/orders/[id]` (PATCH status PENDING↔READY→DONE/CANCELLED with terminal-state guard; DELETE only for DONE/CANCELLED — live orders must be cancelled first). BUG FIXED during round: id was count+1 → after deleting an order the next create could collide with an existing RO id (unique violation); now uses max numeric suffix + 1.
+   167→   167→- `/api/stats` now returns `ordersPending` (PENDING+READY count) + `ordersNextDue` (earliest pickup ISO). Backup GET/POST now include orders (restore upserts by orderId, tolerates v1 files without orders).
+   168→   168→- FEATURE — Pre-orders view (both roles, new "Pre-orders" nav item with NotebookPen icon, desktop nav + mobile bottom nav): summary line ("N open · a pending, b ready"), search by order id/customer/phone, status filter chips with counts, responsive 2-col order cards: status badge, pickup chip ("Pickup Today 5:00 pm", Tomorrow, or date; OVERDUE pulsing red for live orders + ring), tel: link phone, item lines (qty × name + code + subtotal), note in bordered italic block, taken-by + timestamp. Actions: PENDING → Ready/Cancel (+Load into POS for salesman); READY → Picked up/Load into POS; DONE/CANCELLED → Remove (AlertDialog confirm). Closed orders show a muted pickup chip.
+   169→   169→- FEATURE — New order dialog: customer name (required, autofocus) + phone, product search list (name or ID, top 6) → draft lines with qty steppers/remove, pickup quick chips (Today 5 PM / Tomorrow 12 PM / Tomorrow 5 PM computed as next-upcoming) + datetime-local input + Clear time, note (300 cap), live total, per-field validation toasts. Saved via POST; form resets on open.
+   170→   170→- FEATURE — Load into POS (salesman): clamps order lines against live stock (drops out-of-stock with warning count), hands items via new non-persisted `useCartIntent` zustand store, navigates to POS; PosView consumes the intent on mount → cart filled + 6s toast ("complete the sale, then mark it picked up"). Owner correctly does NOT see the button (no POS view). Round-trip verified: RO-000004 (2× Fresh Bread) → POS cart Rs. 240 → cash 500 → sale RR-000024 (change 260) → marked Picked up.
+   171→   171→- FEATURE — Auto-park on navigate: leaving the POS (or logging out) with a live cart now parks it into the existing held-sales store automatically + info toast, instead of silently losing the items (PosView cart was component-local; navigation unmounted it). Verified: 2× Bun → Pre-orders → "Order parked automatically" toast → back to POS → "PARKED ORDERS (1)" chip → resume → 2 items back.
+   172→   172→- OWNER DASHBOARD — pre-orders banner under the stat cards (only when ordersPending > 0): amber NotebookPen chip, "N open pre-orders", "Next pickup: Tue 6:30 pm" (or "Awaiting pickup scheduling"), whole banner clickable → Pre-orders view. Verified with and without a scheduled pickup.
+   173→   173→- FIXED during round: dev server died from an improper restart — must use `bash -c 'setsid nohup bun run dev > dev.log 2>&1 < /dev/null &'` to survive; TDZ ReferenceError from a ref assignment placed before `payable`'s declaration in pos-view (payStateRef now initialized empty and synced after payable is computed).
+   174→   174→- Verification (agent-browser): API matrix (create/list/patch/delete, invalid code, empty name, bad phone, delete-live blocked); salesman UI flow order RO-000004 → sale RR-000024 → picked up; owner banner + restricted actions; mobile 390px no overflow (scrollWidth 390) with stacked cards and 5-item bottom nav; ESLint clean; dev.log clean.
+   175→   175→
+   176→   176→Stage Summary:
+   177→   177→- App lint-clean, browser-verified. DB now has 29 products, 24 sales today (9 demo + 15 QA), 4 pre-orders (3 pending: RO-000002/3/5, 1 picked up: RO-000004).
+   178→   178→- Demo data note: test pre-orders (Sara Wedding 3kg cake tomorrow 6:30 pm, Bilal Traders, Nadia Shoe Centre) remain as useful demo/seed content; owner can Cancel+Remove them.
+   179→   179→- Risks: none known. Pre-orders do NOT reserve stock by design (booked items may not exist yet; stock only moves when the counter completes the sale). window.print() no-op in headless — spot-check receipt/Z-report on a real printer once.
+   180→   180→- Next-phase candidates: print a pre-order memo ticket from the card, per-item notes, Urdu strings for the Pre-orders screen, owner "price edit" audit log, Noto Nastaliq Urdu font for receipts.
+   181→   181→
