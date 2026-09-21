@@ -103,6 +103,38 @@ export interface ShopSettings {
   paperWidth: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Pre-orders / orders on call                                         */
+/* ------------------------------------------------------------------ */
+
+export type OrderStatus = "PENDING" | "READY" | "DONE" | "CANCELLED";
+
+/** One item line of a pre-order (snapshot taken at order time). */
+export interface OrderLine {
+  /** Human-facing product code, e.g. "205" */
+  code: string;
+  /** Product name snapshot */
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+export interface Order {
+  id: number;
+  orderId: string; // e.g. "RO-000012"
+  customerName: string;
+  customerPhone: string;
+  items: OrderLine[];
+  total: number;
+  status: OrderStatus;
+  dueAt: string | null; // ISO timestamp of the requested pickup time
+  note: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Stats {
   todaySales: number;
   yesterdayTotal: number;
@@ -119,6 +151,10 @@ export interface Stats {
   topProducts: TopProduct[];
   staffToday: StaffSalesRow[];
   report: DayReport;
+  /** Pre-orders that are still PENDING or READY (all-time open book). */
+  ordersPending: number;
+  /** Next pending pickup (ISO) or null. */
+  ordersNextDue: string | null;
 }
 
 /** Snapshot file written by /api/backup (GET) and consumed by restore (POST). */

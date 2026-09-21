@@ -9,6 +9,7 @@ import { InventoryView } from "@/components/pos/inventory-view";
 import { SalesHistory } from "@/components/pos/sales-history";
 import { ProductsView } from "@/components/pos/products-view";
 import { PosView } from "@/components/pos/pos-view";
+import { OrdersView } from "@/components/pos/orders-view";
 import { useSession } from "@/lib/store";
 import type { SessionUser } from "@/lib/types";
 
@@ -66,6 +67,13 @@ export function PosApp() {
       {view === "inventory" && user.role === "OWNER" ? <InventoryView /> : null}
       {view === "sales" ? <SalesHistory /> : null}
       {view === "products" ? <ProductsView /> : null}
+      {view === "orders" ? (
+        <OrdersView
+          role={user.role}
+          createdBy={user.name}
+          onNavigate={(v) => setView(v)}
+        />
+      ) : null}
       {view === "pos" && user.role === "SALESMAN" ? <PosView salesmanName={user.name} /> : null}
     </AppShell>
   );

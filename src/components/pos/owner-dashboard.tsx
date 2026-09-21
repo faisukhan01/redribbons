@@ -6,6 +6,7 @@ import {
   Banknote,
   Boxes,
   Crown,
+  NotebookPen,
   Package,
   PackagePlus,
   ReceiptText,
@@ -283,6 +284,39 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           sub={`${formatPKR(stats?.stockValue ?? 0)} in stock value`}
         />
       </div>
+
+      {/* Open pre-orders banner — only when there is something in the book */}
+      {stats && stats.ordersPending > 0 ? (
+        <button
+          type="button"
+          onClick={() => onNavigate("orders")}
+          className="group flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-gradient-to-r from-[#FCF7EF] to-card px-4 py-3.5 text-left transition-shadow hover:shadow-md"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning/15">
+              <NotebookPen className="h-5 w-5 text-warning" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">
+                {formatNumber(stats.ordersPending)} open {stats.ordersPending === 1 ? "pre-order" : "pre-orders"}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {stats.ordersNextDue
+                  ? `Next pickup: ${new Date(stats.ordersNextDue).toLocaleString("en-PK", {
+                      weekday: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}`
+                  : "Awaiting pickup scheduling"}
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1 text-sm font-bold text-primary group-hover:underline">
+            Open the book <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </button>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Payment breakdown */}

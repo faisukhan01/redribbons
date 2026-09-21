@@ -85,3 +85,30 @@ export const useLastSale = create<LastSaleState>()(
     { name: "red-ribbons-pos-last-sale" }
   )
 );
+
+/* ------------------------------------------------------------------ */
+/* Cart intent — lets another view (e.g. Pre-orders) hand a list of    */
+/* items to the POS cart during an in-app navigation. Not persisted:   */
+/* the hand-off is only meaningful while the app stays open.           */
+/* ------------------------------------------------------------------ */
+
+interface CartIntentState {
+  /** Items waiting to be loaded into the POS cart (already stock-clamped). */
+  pending: CartItem[] | null;
+  /** Label for the toast, e.g. "RO-000012". */
+  label: string | null;
+  setIntent: (items: CartItem[], label: string) => void;
+  consumeIntent: () => { items: CartItem[]; label: string } | null;
+}
+
+export const useCartIntent = create<CartIntentState>()((set, get) => ({
+  pending: null,
+  label: null,
+  setIntent: (items, label) => set({ pending: items, label }),
+  consumeIntent: () => {
+    const { pending, label } = get();
+    if (!pending || pending.length === 0) return null;
+    set({ pending: null, label: null });
+    return { items: pending, label: label ?? "" };
+  },
+}));

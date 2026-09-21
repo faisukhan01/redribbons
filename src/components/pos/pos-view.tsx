@@ -12,7 +12,7 @@ import { ProductTile } from "@/components/pos/shared";
 import { ReprintDialog } from "@/components/pos/reprint-dialog";
 import { api } from "@/lib/api";
 import { formatPKR } from "@/lib/format";
-import { useHeldSales, useLastSale } from "@/lib/store";
+import { useHeldSales, useLastSale, useCartIntent } from "@/lib/store";
 import { useShopSettings } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -95,6 +95,38 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     void useShopSettings.getState().load(); // for receipt shop lines
   }, [loadMyDay]);
 
+  // A pre-order "Load into POS" hand-off — runs once per mount, then clears
+  useEffect(() => {
+    const intent = useCartIntent.getState().consumeIntent();
+    if (intent) {
+      setCart(intent.items);
+      toast.success(`Pre-order ${intent.label} loaded into the cart — complete the sale, then mark it picked up.`, {
+        duration: 6000,
+      });
+    }
+  }, []);
+
+  // If the counter navigates away (or logs out) with a live cart, park it
+  // automatically instead of silently losing the items.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const payStateRef = useRef<{ paymentMethod: PayMethod; cashInput: string; discountInput: string; payable: number }>({
+    paymentMethod: "CASH",
+    cashInput: "",
+    discountInput: "",
+    payable: 0,
+  });
+  useEffect(() => {
+    return () => {
+      const items = cartRef.current;
+      if (items.length > 0) {
+        const { paymentMethod, cashInput, discountInput, payable } = payStateRef.current;
+        useHeldSales.getState().hold({ items, paymentMethod, cashInput, discount: discountInput, total: payable });
+        toast.info("Order parked automatically — resume it from the parked list on the cart.");
+      }
+    };
+  }, []);
+
   // Counter keyboard shortcuts: F2 → Product ID, F3 → payment, F4 → hold, / → search
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -159,6 +191,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const payable = Math.max(0, Math.round((total - discount) * 100) / 100);
   const received = paymentMethod === "CASH" ? parseFloat(cashInput || "0") || 0 : payable;
   const change = Math.max(0, received - payable);
+
+  // Keep the payment snapshot fresh for the auto-park-on-navigate cleanup above
+  payStateRef.current = { paymentMethod, cashInput, discountInput, payable };
 
   function addToCart(p: Product, qty = 1) {
     if (p.stock <= 0) {

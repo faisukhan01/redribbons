@@ -60,3 +60,20 @@ model SaleItem {
   price     Float
   subtotal  Float
 }
+
+// Pre-orders / orders on call — a cake booked by phone, picked up later.
+// Items are snapshotted (name + price) exactly like sale lines.
+model Order {
+  id            Int       @id @default(autoincrement())
+  orderId       String    @unique // e.g. "RO-000012"
+  customerName  String
+  customerPhone String    @default("")
+  itemsJson     String // JSON array: [{ code, name, quantity, price }]
+  total         Float
+  status        String    @default("PENDING") // PENDING | READY | DONE | CANCELLED
+  dueAt         DateTime? // requested pickup time
+  note          String    @default("")
+  createdBy     String // user name who took the order
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

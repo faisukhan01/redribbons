@@ -35,13 +35,27 @@ export interface BackupFile {
   products: BackupProduct[];
   sales: BackupSale[];
   settings?: Record<string, string>;
+  orders?: BackupOrder[];
+}
+
+interface BackupOrder {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  items: Array<{ code: string; name: string; quantity: number; price: number; subtotal: number }>;
+  total: number;
+  status: string;
+  dueAt: string | null;
+  note: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 // GET /api/backup — download a full JSON snapshot (products + sales + settings)
 export async function GET() {
   try {
     await ensureSeed();
-    const [products, sales, settingRows] = await Promise.all([
+    const [products, sales, settingRows, orders] = await Promise.all([
       db.product.findMany({
         orderBy: { productId: "asc" },
         select: {
@@ -62,6 +76,7 @@ export async function GET() {
         },
       }),
       db.setting.findMany(),
+      db.order.findMany({ orderBy: { id: "asc" } }),
     ]);
 
     const backup: BackupFile = {
@@ -87,6 +102,27 @@ export async function GET() {
         })),
       })),
       settings: Object.fromEntries(settingRows.map((r) => [r.key, r.value])),
+      orders: orders.map((o) => {
+        let items: BackupOrder["items"] = [];
+        try {
+          const parsed = JSON.parse(o.itemsJson);
+          if (Array.isArray(parsed)) items = parsed;
+        } catch {
+          items = [];
+        }
+        return {
+          orderId: o.orderId,
+          customerName: o.customerName,
+          customerPhone: o.customerPhone,
+          items,
+          total: o.total,
+          status: o.status,
+          dueAt: o.dueAt ? o.dueAt.toISOString() : null,
+          note: o.note,
+          createdBy: o.createdBy,
+          createdAt: o.createdAt.toISOString(),
+        };
+      }),
     };
     return NextResponse.json(backup);
   } catch (err) {
@@ -246,7 +282,38 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, ...result });
+    // Restore pre-orders (non-critical — a v1 backup without orders still restores)
+    let restoredOrders = 0;
+    if (Array.isArray(body.orders)) {
+      for (const o of body.orders) {
+        const orderId = String(o?.orderId ?? "").trim();
+        const name = String(o?.customerName ?? "").trim();
+        if (!orderId || !name) continue;
+        const status = ["PENDING", "READY", "DONE", "CANCELLED"].includes(String(o?.status))
+          ? String(o.status)
+          : "PENDING";
+        const due = o.dueAt ? new Date(o.dueAt) : null;
+        await db.order.upsert({
+          where: { orderId },
+          update: {},
+          create: {
+            orderId,
+            customerName: name.slice(0, 80),
+            customerPhone: String(o?.customerPhone ?? "").trim().slice(0, 20),
+            itemsJson: JSON.stringify(Array.isArray(o.items) ? o.items : []),
+            total: Number(o?.total) || 0,
+            status,
+            dueAt: due && !Number.isNaN(due.getTime()) ? due : null,
+            note: String(o?.note ?? "").slice(0, 300),
+            createdBy: String(o?.createdBy ?? "Staff").trim() || "Staff",
+            createdAt: o.createdAt && !Number.isNaN(new Date(o.createdAt).getTime()) ? new Date(o.createdAt) : new Date(),
+          },
+        });
+        restoredOrders += 1;
+      }
+    }
+
+    return NextResponse.json({ ok: true, ...result, orders: restoredOrders });
   } catch (err) {
     console.error("backup restore error", err);
     return NextResponse.json(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, KeyRound, LayoutDashboard, LogOut, Package, ReceiptText, ScanBarcode, ShoppingBag, Store } from "lucide-react";
+import { Crown, KeyRound, LayoutDashboard, LogOut, NotebookPen, Package, ReceiptText, ScanBarcode, ShoppingBag, Store } from "lucide-react";
 import { BrandHeader } from "@/components/pos/brand";
 import { AccountDialog } from "@/components/pos/account-dialog";
 import { BackupMenu } from "@/components/pos/backup-menu";
@@ -9,17 +9,19 @@ import { ReceiptSettingsDialog } from "@/components/pos/receipt-settings-dialog"
 import { cn } from "@/lib/utils";
 import type { Role, SessionUser } from "@/lib/types";
 
-export type View = "dashboard" | "inventory" | "sales" | "products" | "pos";
+export type View = "dashboard" | "inventory" | "sales" | "products" | "pos" | "orders";
 
 const NAV: Record<Role, Array<{ id: View; label: string; icon: typeof LayoutDashboard }>> = {
   OWNER: [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "inventory", label: "Inventory", icon: Package },
     { id: "sales", label: "Sales", icon: ReceiptText },
+    { id: "orders", label: "Pre-orders", icon: NotebookPen },
     { id: "products", label: "Products", icon: ScanBarcode },
   ],
   SALESMAN: [
     { id: "pos", label: "POS", icon: ShoppingBag },
+    { id: "orders", label: "Pre-orders", icon: NotebookPen },
     { id: "products", label: "Products", icon: ScanBarcode },
     { id: "sales", label: "Sales", icon: ReceiptText },
   ],

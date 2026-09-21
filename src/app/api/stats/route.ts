@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems, yesterdayAgg, discountAgg, todayStaffRows] =
+    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems, yesterdayAgg, discountAgg, todayStaffRows, ordersPendingAgg, nextOrder] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -94,6 +94,14 @@ export async function GET(req: Request) {
           _count: true,
           _sum: { total: true },
         }),
+        // Open pre-orders (PENDING + READY) for the dashboard banner
+        db.order.count({ where: { status: { in: ["PENDING", "READY"] } } }),
+        // Earliest upcoming pickup among the open pre-orders
+        db.order.findFirst({
+          where: { status: { in: ["PENDING", "READY"] }, dueAt: { not: null } },
+          orderBy: { dueAt: "asc" },
+          select: { dueAt: true },
+        }),
       ]);
 
     const products = await db.product.findMany({ select: { price: true, stock: true } });
@@ -159,6 +167,8 @@ export async function GET(req: Request) {
         discountTotal: discountAgg._sum.discount ?? 0,
         topItems,
       },
+      ordersPending: ordersPendingAgg,
+      ordersNextDue: nextOrder?.dueAt?.toISOString() ?? null,
     };
     return NextResponse.json(stats);
   } catch (err) {
