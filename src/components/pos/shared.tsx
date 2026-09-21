@@ -63,9 +63,14 @@ export function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/25 sm:p-5">
+    <div className="group relative overflow-hidden rounded-xl border bg-card p-4 transition-all hover:border-primary/25 hover:shadow-[0_8px_24px_-14px_rgba(122,15,21,0.4)] sm:p-5">
+      {/* brand accent line that reveals on hover */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r from-primary to-[#7A0F15] transition-transform duration-300 group-hover:scale-x-100"
+      />
       <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
           <Icon className="h-4 w-4" />
         </span>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -122,7 +127,7 @@ export function ProductTile({
 export function RecentSaleRow({ sale }: { sale: Sale }) {
   const units = sale.items.reduce((s, i) => s + i.quantity, 0);
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 border-b border-border/70 py-2.5 last:border-b-0">
       <div className="min-w-0">
         <p className="font-mono text-sm font-bold text-foreground">{sale.saleId}</p>
         <p className="truncate text-xs text-muted-foreground">

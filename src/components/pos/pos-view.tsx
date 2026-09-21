@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Search, ShoppingBag } from "lucide-react";
+import { CornerDownLeft, Loader2, Plus, Search, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { SaleSuccess } from "@/components/pos/sale-success";
 import { ProductTile } from "@/components/pos/shared";
 import { api } from "@/lib/api";
 import { formatPKR } from "@/lib/format";
+import { useHeldSales } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { CartItem, Product, Sale } from "@/lib/types";
 
@@ -25,6 +26,11 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const [completing, setCompleting] = useState(false);
   const [success, setSuccess] = useState<Sale | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const held = useHeldSales((s) => s.held);
+  const holdSale = useHeldSales((s) => s.hold);
+  const takeHeld = useHeldSales((s) => s.take);
+  const discardHeld = useHeldSales((s) => s.discard);
 
   // Manual reload after a completed sale (stock changed) — never called during render
   const load = useCallback(async () => {
@@ -143,6 +149,52 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     setCashInput("");
   }
 
+  /** Park the current cart (with its payment state) and clear the counter. */
+  function handleHold() {
+    if (cart.length === 0) return;
+    holdSale({ items: cart, paymentMethod, cashInput, total });
+    clearCart();
+    toast.success("Order parked — you can start the next customer now.", {
+      description: "Resume it any time from the parked list on the cart.",
+    });
+  }
+
+  /** Resume a parked order. If the counter has an active cart, swap the two. */
+  function handleResume(id: string) {
+    const h = takeHeld(id);
+    if (!h) return;
+    // Re-clamp quantities against the latest stock before loading the cart
+    const clamped: CartItem[] = [];
+    for (const item of h.items) {
+      const live = products?.find((p) => p.id === item.productId);
+      const maxStock = live ? live.stock : item.stock;
+      const qty = Math.min(item.quantity, maxStock);
+      if (qty > 0) clamped.push({ ...item, stock: maxStock, quantity: qty });
+    }
+    if (clamped.length === 0) {
+      toast.error("Parked order can no longer be resumed — its items are out of stock.");
+      return;
+    }
+    const dropped = h.items.reduce((s, i) => s + i.quantity, 0) - clamped.reduce((s, i) => s + i.quantity, 0);
+    if (cart.length > 0) {
+      holdSale({ items: cart, paymentMethod, cashInput, total });
+      toast.info("Current order parked — resumed the other one.");
+    }
+    setCart(clamped);
+    setPaymentMethod(h.paymentMethod);
+    setCashInput(h.cashInput);
+    toast.success(
+      dropped > 0
+        ? `Order resumed — ${dropped} ${dropped === 1 ? "unit" : "units"} removed (out of stock).`
+        : "Order resumed."
+    );
+  }
+
+  function handleDiscard(id: string) {
+    discardHeld(id);
+    toast.success("Parked order discarded.");
+  }
+
   async function completeSale() {
     if (cart.length === 0) return;
     setCompleting(true);
@@ -195,22 +247,32 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               Product ID
             </label>
             <div className="mt-2 flex gap-2">
-              <Input
-                id="pos-id"
-                value={idInput}
-                onChange={(e) => setIdInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleIdAdd();
-                  }
-                }}
-                placeholder="e.g. 101"
-                inputMode="text"
-                autoFocus
-                autoComplete="off"
-                className="h-14 min-w-0 flex-1 rounded-xl font-mono text-xl font-bold tracking-wide"
-              />
+              <div className="relative min-w-0 flex-1">
+                <Input
+                  id="pos-id"
+                  value={idInput}
+                  onChange={(e) => setIdInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleIdAdd();
+                    }
+                  }}
+                  placeholder="e.g. 101"
+                  inputMode="text"
+                  autoFocus
+                  autoComplete="off"
+                  className="h-14 rounded-xl pr-20 font-mono text-xl font-bold tracking-wide"
+                />
+                {idInput === "" ? (
+                  <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1 sm:flex">
+                    <kbd className="rounded-md border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-bold text-muted-foreground shadow-sm">
+                      Enter
+                    </kbd>
+                    <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </span>
+                ) : null}
+              </div>
               <Button
                 onClick={handleIdAdd}
                 className="h-14 gap-2 rounded-xl px-6 text-base font-bold uppercase tracking-wide sm:px-8"
@@ -312,6 +374,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
             received={received}
             change={change}
             completing={completing}
+            held={held}
+            onHold={handleHold}
+            onResume={handleResume}
+            onDiscard={handleDiscard}
             onSetQty={setQty}
             onRemove={removeLine}
             onClear={clearCart}
@@ -329,7 +395,8 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
           <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-muted-foreground">
-                {cart.reduce((s, i) => s + i.quantity, 0)} items in cart
+                {cart.reduce((s, i) => s + i.quantity, 0)}{" "}
+                {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"} in cart
               </p>
               <p className="truncate font-display text-xl font-bold tabular-nums text-primary">
                 {formatPKR(total)}
@@ -364,6 +431,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
             received={received}
             change={change}
             completing={completing}
+            held={held}
+            onHold={handleHold}
+            onResume={handleResume}
+            onDiscard={handleDiscard}
             onSetQty={setQty}
             onRemove={removeLine}
             onClear={clearCart}

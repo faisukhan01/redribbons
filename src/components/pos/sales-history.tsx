@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Printer, ReceiptText, ScrollText } from "lucide-react";
+import { Download, Printer, ReceiptText, ScrollText } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PaymentBadge } from "@/components/pos/shared";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
 import { api } from "@/lib/api";
+import { downloadCSV, todayStamp } from "@/lib/csv";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Sale } from "@/lib/types";
@@ -51,6 +53,29 @@ export function SalesHistory() {
 
   const todayTotal = visible.reduce((s, x) => s + x.total, 0);
 
+  function exportCSV() {
+    if (visible.length === 0) {
+      toast.error("Nothing to export — no sales in the selected filter.");
+      return;
+    }
+    downloadCSV(
+      `red-ribbons-sales-${todayStamp()}.csv`,
+      ["Sale ID", "Date & Time", "Salesman", "Payment", "Items", "Item Detail", "Total (Rs.)", "Received (Rs.)", "Change (Rs.)"],
+      visible.map((s) => [
+        s.saleId,
+        formatDateTime(s.createdAt),
+        s.salesman,
+        s.paymentMethod === "CASH" ? "Cash" : "Online",
+        s.items.reduce((n, i) => n + i.quantity, 0),
+        s.items.map((i) => `${i.quantity}x ${i.name} @ ${i.price}`).join("; "),
+        s.total,
+        s.amountReceived ?? "",
+        s.changeReturned ?? "",
+      ])
+    );
+    toast.success(`Exported ${visible.length} ${visible.length === 1 ? "sale" : "sales"} to CSV.`);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -60,22 +85,34 @@ export function SalesHistory() {
             Every transaction with items, payment and change.
           </p>
         </div>
-        <div className="flex rounded-lg border bg-card p-1">
-          {(["today", "all"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={cn(
-                "rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors",
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f === "today" ? "Today" : "All"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportCSV}
+            disabled={sales === null || visible.length === 0}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <div className="flex rounded-lg border bg-card p-1">
+            {(["today", "all"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors",
+                  filter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f === "today" ? "Today" : "All"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

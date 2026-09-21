@@ -6,11 +6,14 @@ import {
   Banknote,
   Boxes,
   Package,
+  PackagePlus,
   RefreshCw,
   ShoppingBag,
   Smartphone,
+  TrendingUp,
   TriangleAlert,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StatCard, RecentSaleRow } from "@/components/pos/shared";
 import { api } from "@/lib/api";
@@ -19,10 +22,101 @@ import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
 import type { View } from "@/components/pos/app-shell";
 
+/** Mini 7-day bar strip — pure CSS, no chart library. */
+function TrendStrip({ stats }: { stats: Stats }) {
+  const trend = stats.trend;
+  const max = Math.max(...trend.map((t) => t.total), 1);
+  const weekTotal = trend.reduce((s, t) => s + t.total, 0);
+  const weekCount = trend.reduce((s, t) => s + t.count, 0);
+  const best = trend.reduce((b, t) => (t.total > b.total ? t : b), trend[0]);
+
+  return (
+    <div className="rounded-xl border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          Last 7 Days
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-bold tabular-nums text-foreground">{formatPKR(weekTotal)}</span>
+          {" · "}
+          {formatNumber(weekCount)} {weekCount === 1 ? "sale" : "sales"}
+        </p>
+      </div>
+
+      <div className="mt-4 flex h-28 items-end gap-2 sm:gap-3">
+        {trend.map((t, i) => {
+          const isToday = i === trend.length - 1;
+          const pct = Math.max(4, Math.round((t.total / max) * 100));
+          return (
+            <div key={t.date} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+              <p
+                className={cn(
+                  "text-[10px] font-bold tabular-nums",
+                  isToday ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                {t.total > 0 ? formatNumber(t.total) : "–"}
+              </p>
+              <div
+                role="img"
+                aria-label={`${t.label}: ${formatPKR(t.total)} from ${t.count} sales`}
+                title={`${t.label} · ${formatPKR(t.total)} · ${t.count} ${t.count === 1 ? "sale" : "sales"}`}
+                style={{ height: `${pct}%` }}
+                className={cn(
+                  "w-full max-w-9 rounded-t-md transition-all duration-300 hover:opacity-80",
+                  t.total === 0
+                    ? "bg-muted"
+                    : isToday
+                      ? "bg-gradient-to-t from-[#7A0F15] to-primary shadow-[0_4px_12px_-4px_rgba(169,26,36,0.6)]"
+                      : "bg-primary/45"
+                )}
+              />
+              <p
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-wide",
+                  isToday ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                {isToday ? "Today" : t.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {best && best.total > 0 ? (
+        <p className="mt-3 border-t pt-2.5 text-xs text-muted-foreground">
+          Best day: <span className="font-bold text-foreground">{best.label}</span> with{" "}
+          <span className="font-bold tabular-nums text-foreground">{formatPKR(best.total)}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [restocking, setRestocking] = useState<number | null>(null);
+
+  /** Quick restock: add 10 units without leaving the dashboard. */
+  async function quickRestock(id: number, name: string) {
+    setRestocking(id);
+    try {
+      await api(`/api/products/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ addStock: 10 }),
+      });
+      toast.success(`Added 10 units of ${name} to stock.`);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not restock right now.");
+    } finally {
+      setRestocking(null);
+    }
+  }
 
   // Manual refresh (button) — never called during render
   const load = useCallback(async () => {
@@ -183,30 +277,35 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           </div>
         </div>
 
-        {/* Recent transactions */}
-        <div className="rounded-xl border bg-card p-5 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Recent Transactions</h2>
-            <button
-              type="button"
-              onClick={() => onNavigate("sales")}
-              className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-            >
-              View all <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-          {stats && stats.recentSales.length > 0 ? (
-            <div className="mt-2 divide-y divide-border">
-              {stats.recentSales.map((sale) => (
-                <RecentSaleRow key={sale.id} sale={sale} />
-              ))}
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {loading ? "Loading…" : "No sales yet today."}
-            </p>
-          )}
+        {/* 7-day trend */}
+        <div className="lg:col-span-2">
+          {stats ? <TrendStrip stats={stats} /> : null}
         </div>
+      </div>
+
+      {/* Recent transactions */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold">Recent Transactions</h2>
+          <button
+            type="button"
+            onClick={() => onNavigate("sales")}
+            className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+          >
+            View all <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+        {stats && stats.recentSales.length > 0 ? (
+          <div className="mt-2 grid gap-x-8 md:grid-cols-2">
+            {stats.recentSales.map((sale) => (
+              <RecentSaleRow key={sale.id} sale={sale} />
+            ))}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {loading ? "Loading…" : "No sales yet today."}
+          </p>
+        )}
       </div>
 
       {/* Low stock watchlist */}
@@ -230,34 +329,50 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           </button>
         </div>
         {stats && stats.lowStock.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
             {stats.lowStock.map((p) => (
               <div
                 key={p.id}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg border px-3 py-2",
+                  "flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2",
                   p.stock <= 0
                     ? "border-destructive/30 bg-[#FBE9E7]"
                     : "border-warning/30 bg-[#FCF7EF]"
                 )}
               >
-                <div>
-                  <p className="text-sm font-semibold leading-tight">{p.name}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-mono">{p.productId}</span> · {p.category} ·{" "}
                     {formatPKR(p.price)}
                   </p>
                 </div>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-bold",
-                    p.stock <= 0 ? "bg-destructive text-white" : "bg-warning text-white"
-                  )}
-                >
-                  {p.stock <= 0 ? "OUT" : `${p.stock} left`}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                      p.stock <= 0 ? "bg-destructive text-white" : "bg-warning text-white"
+                    )}
+                  >
+                    {p.stock <= 0 ? "OUT" : `${p.stock} left`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={restocking === p.id}
+                    onClick={() => void quickRestock(p.id, p.name)}
+                    title={`Add 10 units of ${p.name}`}
+                    className="h-8 gap-1.5 rounded-lg border-warning/40 px-2.5 text-xs font-bold text-warning hover:bg-warning hover:text-white"
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" />
+                    {restocking === p.id ? "Adding…" : "+10"}
+                  </Button>
+                </div>
               </div>
             ))}
+            <p className="text-[11px] text-muted-foreground md:col-span-2">
+              Tip: “+10” instantly adds 10 units. For other amounts, use Inventory → Restock.
+            </p>
           </div>
         ) : (
           <p className="mt-3 rounded-lg bg-[#EAF4EE] px-3 py-2.5 text-sm font-semibold text-[#2E7D4F]">

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, itemsAgg, productsCount, stockAgg, recent, lowStock] =
+    const [todayAgg, cashAgg, onlineAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -45,10 +45,36 @@ export async function GET(req: Request) {
           orderBy: { stock: "asc" },
           take: 6,
         }),
+        // Last 7 days (incl. today) for the trend strip
+        db.sale.findMany({
+          where: { createdAt: { gte: new Date(dayStart - 6 * 86_400_000) } },
+          select: { total: true, createdAt: true },
+        }),
       ]);
 
     const products = await db.product.findMany({ select: { price: true, stock: true } });
     const stockValue = products.reduce((sum, p) => sum + p.price * p.stock, 0);
+
+    // Bucket the week's sales into per-day totals (client timezone day boundaries)
+    const buckets = new Map<string, { total: number; count: number }>();
+    for (const s of weekSales) {
+      const dayKey = new Date(
+        Math.floor((s.createdAt.getTime() - tzOffset * 60_000) / 86_400_000) * 86_400_000
+      )
+        .toISOString()
+        .slice(0, 10);
+      const b = buckets.get(dayKey) ?? { total: 0, count: 0 };
+      b.total += s.total;
+      b.count += 1;
+      buckets.set(dayKey, b);
+    }
+    const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const trend = Array.from({ length: 7 }, (_, i) => {
+      const ms = dayStart + (i - 6) * 86_400_000;
+      const date = new Date(ms).toISOString().slice(0, 10);
+      const b = buckets.get(date) ?? { total: 0, count: 0 };
+      return { date, label: weekday[new Date(ms).getUTCDay()], total: b.total, count: b.count };
+    });
 
     const stats: Stats = {
       todaySales: todayAgg._sum.total ?? 0,
@@ -61,6 +87,7 @@ export async function GET(req: Request) {
       stockValue,
       lowStock,
       recentSales: recent,
+      trend,
     };
     return NextResponse.json(stats);
   } catch (err) {

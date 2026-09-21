@@ -1,9 +1,21 @@
 "use client";
 
-import { Banknote, Loader2, Minus, Plus, Smartphone, Trash2, X } from "lucide-react";
+import {
+  Banknote,
+  Loader2,
+  Minus,
+  PackageOpen,
+  Pause,
+  Play,
+  Plus,
+  Smartphone,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatPKR } from "@/lib/format";
+import { formatNumber, formatPKR, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { HeldSale } from "@/lib/store";
 import type { CartItem } from "@/lib/types";
 
 export type PayMethod = "CASH" | "ONLINE";
@@ -18,6 +30,10 @@ interface CartPanelProps {
   received: number;
   change: number;
   completing: boolean;
+  held: HeldSale[];
+  onHold: () => void;
+  onResume: (id: string) => void;
+  onDiscard: (id: string) => void;
   onSetQty: (productId: number, qty: number) => void;
   onRemove: (productId: number) => void;
   onClear: () => void;
@@ -40,6 +56,10 @@ export function CartPanel({
   received,
   change,
   completing,
+  held,
+  onHold,
+  onResume,
+  onDiscard,
   onSetQty,
   onRemove,
   onClear,
@@ -57,26 +77,85 @@ export function CartPanel({
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-bold">Current Sale</h2>
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-bold text-secondary-foreground">
-            {cart.reduce((s, i) => s + i.quantity, 0)} items
+            {cart.reduce((s, i) => s + i.quantity, 0)}{" "}
+            {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={empty}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
-        >
-          <Trash2 className="h-3.5 w-3.5" /> Clear
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onHold}
+            disabled={empty}
+            title="Park this order and start the next customer"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-40"
+          >
+            <Pause className="h-3.5 w-3.5" /> Hold
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={empty}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Clear
+          </button>
+        </div>
       </div>
+
+      {/* Parked sales */}
+      {held.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-warning/30 bg-[#FCF7EF] p-2">
+          <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-warning">
+            Parked orders ({formatNumber(held.length)})
+          </p>
+          <div className="rr-scroll mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
+            {held.map((h) => (
+              <div
+                key={h.id}
+                className="group flex shrink-0 items-center gap-1.5 rounded-lg border border-warning/25 bg-card py-1 pl-2.5 pr-1 shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => onResume(h.id)}
+                  title="Resume this order"
+                  className="flex items-center gap-1.5 text-left"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-warning/15 text-warning">
+                    <Play className="h-3 w-3" />
+                  </span>
+                  <span className="leading-tight">
+                    <span className="block text-xs font-bold tabular-nums text-foreground">
+                      {formatPKR(h.total)}
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {h.items.reduce((s, i) => s + i.quantity, 0)} items · {formatTime(h.at)}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDiscard(h.id)}
+                  aria-label="Discard parked order"
+                  className="rounded p-1 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Cart items */}
       <div className="rr-scroll max-h-[30vh] min-h-[80px] overflow-y-auto py-2 lg:max-h-[32vh]">
         {empty ? (
-          <div className="flex h-full min-h-[80px] flex-col items-center justify-center py-6 text-center">
-            <p className="text-sm font-semibold text-muted-foreground">Cart is empty</p>
+          <div className="flex h-full min-h-[96px] flex-col items-center justify-center py-6 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
+              <PackageOpen className="h-5 w-5 text-primary/70" />
+            </span>
+            <p className="mt-2.5 text-sm font-semibold text-foreground">Cart is empty</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Enter a Product ID to start a sale
+              Enter a Product ID or tap a product tile to start
             </p>
           </div>
         ) : (

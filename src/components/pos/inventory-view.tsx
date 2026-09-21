@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Boxes, Package, ReceiptText, Search, TrendingUp, Wallet } from "lucide-react";
+import { Boxes, Download, Package, ReceiptText, Search, TrendingUp, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,7 +16,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard, StockBadge } from "@/components/pos/shared";
 import { api } from "@/lib/api";
+import { downloadCSV, todayStamp } from "@/lib/csv";
 import { formatNumber, formatPKR } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Product } from "@/lib/types";
 
 export function ProductFilters({
@@ -111,13 +115,37 @@ export function InventoryView() {
   const totalSold = (products ?? []).reduce((s, p) => s + p.soldQuantity, 0);
   const stockValue = (products ?? []).reduce((s, p) => s + p.price * p.stock, 0);
 
+  function exportCSV() {
+    if (!products || products.length === 0) {
+      toast.error("Nothing to export — inventory is empty.");
+      return;
+    }
+    downloadCSV(
+      `red-ribbons-inventory-${todayStamp()}.csv`,
+      ["Product ID", "Name", "Category", "Price (Rs.)", "Stock", "Sold", "Stock Value (Rs.)"],
+      products.map((p) => [p.productId, p.name, p.category, p.price, p.stock, p.soldQuantity, p.price * p.stock])
+    );
+    toast.success(`Exported ${products.length} products to CSV.`);
+  }
+
+  const lowCount = (products ?? []).filter((p) => p.stock <= 5).length;
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold sm:text-3xl">Inventory</h1>
-        <p className="text-sm text-muted-foreground">
-          What came in, what sold, and what remains.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">Inventory</h1>
+          <p className="text-sm text-muted-foreground">
+            What came in, what sold, and what remains.
+            {lowCount > 0 ? (
+              <span className="font-semibold text-warning"> {lowCount} need restocking.</span>
+            ) : null}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={exportCSV} disabled={products === null || products.length === 0} className="gap-2">
+          <Download className="h-4 w-4" />
+          Export CSV
+        </Button>
       </div>
 
       {error ? (
@@ -172,7 +200,12 @@ export function InventoryView() {
                 </TableHeader>
                 <TableBody>
                   {visible.map((p) => (
-                    <TableRow key={p.id}>
+                    <TableRow
+                      key={p.id}
+                      className={cn(
+                        p.stock <= 0 ? "bg-[#FBE9E7]/60" : p.stock <= 5 ? "bg-[#FCF7EF]/70" : ""
+                      )}
+                    >
                       <TableCell className="font-mono font-semibold">{p.productId}</TableCell>
                       <TableCell className="font-semibold">{p.name}</TableCell>
                       <TableCell className="text-muted-foreground">{p.category}</TableCell>

@@ -51,6 +51,15 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface TrendPoint {
+  /** YYYY-MM-DD in the client's timezone */
+  date: string;
+  /** Short weekday label, e.g. "Mon" */
+  label: string;
+  total: number;
+  count: number;
+}
+
 export interface Stats {
   todaySales: number;
   salesTodayCount: number;
@@ -62,6 +71,7 @@ export interface Stats {
   stockValue: number;
   lowStock: Product[];
   recentSales: Sale[];
+  trend: TrendPoint[];
 }
 
 export interface ImportRow {
