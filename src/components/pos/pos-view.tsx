@@ -5,7 +5,7 @@ import { Loader2, Plus, Search, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CartPanel, type PayMethod } from "@/components/pos/cart-panel";
 import { SaleSuccess } from "@/components/pos/sale-success";
 import { ProductTile } from "@/components/pos/shared";
@@ -222,7 +222,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
             {/* Live preview */}
             {idInput.trim() !== "" ? (
               preview ? (
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-accent/50 p-3.5">
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/25 border-l-4 border-l-primary bg-accent/50 p-3.5">
                   <div className="min-w-0">
                     <p className="truncate font-display text-lg font-bold">{preview.name}</p>
                     <p className="text-sm text-muted-foreground">
@@ -350,6 +350,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
         <SheetContent side="bottom" className="rr-scroll max-h-[92dvh] overflow-y-auto rounded-t-2xl p-5">
           <SheetHeader className="p-0 pb-2">
             <SheetTitle className="font-display text-xl">Checkout</SheetTitle>
+            <SheetDescription className="sr-only">
+              Review the cart, choose a payment method and complete the sale.
+            </SheetDescription>
           </SheetHeader>
           <CartPanel
             cart={cart}

@@ -216,3 +216,39 @@ input[type="number"] {
 .rr-pop {
   animation: rr-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.4);
 }
+
+/*
+ * Receipt printing pipeline.
+ * printReceipt() renders the receipt into a .rr-print-root appended to <body>;
+ * the print stylesheet hides everything else and formats the receipt at 80mm.
+ */
+.rr-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 10mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    height: auto !important;
+  }
+  body > *:not(.rr-print-root) {
+    display: none !important;
+  }
+  .rr-print-root {
+    display: block !important;
+  }
+  .rr-print-root .rr-receipt {
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0 auto;
+    box-shadow: none !important;
+  }
+  .rr-print-root .rr-receipt,
+  .rr-print-root .rr-receipt * {
+    --tw-ring-shadow: 0 0 #0000;
+  }
+}

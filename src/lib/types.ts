@@ -60,6 +60,7 @@ export interface Stats {
   productsCount: number;
   stockAvailable: number;
   stockValue: number;
+  lowStock: Product[];
   recentSales: Sale[];
 }
 

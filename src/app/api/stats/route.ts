@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, itemsAgg, productsCount, stockAgg, recent] =
+    const [todayAgg, cashAgg, onlineAgg, itemsAgg, productsCount, stockAgg, recent, lowStock] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -40,6 +40,11 @@ export async function GET(req: Request) {
           take: 6,
           include: { items: true },
         }),
+        db.product.findMany({
+          where: { stock: { lte: 5 } },
+          orderBy: { stock: "asc" },
+          take: 6,
+        }),
       ]);
 
     const products = await db.product.findMany({ select: { price: true, stock: true } });
@@ -54,6 +59,7 @@ export async function GET(req: Request) {
       productsCount,
       stockAvailable: stockAgg._sum.stock ?? 0,
       stockValue,
+      lowStock,
       recentSales: recent,
     };
     return NextResponse.json(stats);

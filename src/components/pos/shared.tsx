@@ -63,12 +63,16 @@ export function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4" />
-        <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
+    <div className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/25 sm:p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
       </div>
-      <p className="mt-2 text-xl sm:text-2xl font-bold tabular-nums text-foreground">
+      <p className="mt-2.5 text-xl font-bold tabular-nums text-foreground sm:text-2xl">
         {value}
       </p>
       {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
@@ -95,10 +99,10 @@ export function ProductTile({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex h-full flex-col justify-between gap-1.5 rounded-lg border bg-card p-2.5 text-left transition-colors",
+        "flex h-full flex-col justify-between gap-1.5 rounded-lg border bg-card p-2.5 text-left transition-all",
         disabled
           ? "opacity-50 cursor-not-allowed"
-          : "hover:border-primary/50 hover:bg-accent/60 active:bg-accent"
+          : "hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/60 hover:shadow-[0_6px_16px_-8px_rgba(122,15,21,0.35)] active:translate-y-0 active:bg-accent"
       )}
     >
       <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">

@@ -71,10 +71,20 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
 
       <div
         className={cn(
-          "mt-8 w-full max-w-sm rounded-2xl border bg-card p-5 sm:p-6 shadow-[0_10px_40px_-18px_rgba(122,15,21,0.35)]",
+          "mt-8 w-full max-w-sm overflow-hidden rounded-2xl border bg-card shadow-[0_10px_40px_-18px_rgba(122,15,21,0.35)]",
           shake && "rr-shake"
         )}
       >
+        {/* brand ribbon accent */}
+        <div
+          aria-hidden
+          className="h-1.5 w-full"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, #7A0F15 0%, #A91A24 30%, #C2373F 55%, #A91A24 80%, #7A0F15 100%)",
+          }}
+        />
+        <div className="p-5 sm:p-6">
         {!role ? (
           <>
             <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
@@ -185,6 +195,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
             </div>
           </>
         )}
+        </div>
       </div>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">

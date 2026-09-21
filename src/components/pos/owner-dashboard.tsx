@@ -9,11 +9,13 @@ import {
   RefreshCw,
   ShoppingBag,
   Smartphone,
+  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatCard, RecentSaleRow } from "@/components/pos/shared";
 import { api } from "@/lib/api";
 import { formatNumber, formatPKR, greeting, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
 import type { View } from "@/components/pos/app-shell";
 
@@ -90,15 +92,28 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {/* Hero: Today's Sales */}
-        <div className="col-span-2 rounded-xl bg-gradient-to-br from-primary to-[#7A0F15] p-5 text-primary-foreground shadow-[0_12px_32px_-14px_rgba(122,15,21,0.6)] sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-2 opacity-90">
+        <div className="relative col-span-2 overflow-hidden rounded-xl bg-gradient-to-br from-primary to-[#7A0F15] p-5 text-primary-foreground shadow-[0_12px_32px_-14px_rgba(122,15,21,0.6)] sm:col-span-2 lg:col-span-1">
+          {/* decorative ribbon stripes */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-16 opacity-40"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 7px, transparent 7px 15px)",
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-white/10 blur-2xl"
+          />
+          <div className="relative flex items-center gap-2 opacity-90">
             <ShoppingBag className="h-4 w-4" />
             <p className="text-xs font-semibold uppercase tracking-widest">Today&apos;s Sales</p>
           </div>
-          <p className="mt-2 text-3xl font-bold tabular-nums sm:text-4xl">
+          <p className="relative mt-2 text-3xl font-bold tabular-nums sm:text-4xl">
             {formatPKR(stats?.todaySales ?? 0)}
           </p>
-          <p className="mt-1 text-xs opacity-85">
+          <p className="relative mt-1 text-xs opacity-85">
             {formatNumber(stats?.salesTodayCount ?? 0)}{" "}
             {(stats?.salesTodayCount ?? 0) === 1 ? "transaction" : "transactions"} today
           </p>
@@ -192,6 +207,63 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
             </p>
           )}
         </div>
+      </div>
+
+      {/* Low stock watchlist */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+            <TriangleAlert
+              className={cn(
+                "h-5 w-5",
+                (stats?.lowStock.length ?? 0) > 0 ? "text-warning" : "text-[#2E7D4F]"
+              )}
+            />
+            Low Stock Watchlist
+          </h2>
+          <button
+            type="button"
+            onClick={() => onNavigate("inventory")}
+            className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+          >
+            Open inventory <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+        {stats && stats.lowStock.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {stats.lowStock.map((p) => (
+              <div
+                key={p.id}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg border px-3 py-2",
+                  p.stock <= 0
+                    ? "border-destructive/30 bg-[#FBE9E7]"
+                    : "border-warning/30 bg-[#FCF7EF]"
+                )}
+              >
+                <div>
+                  <p className="text-sm font-semibold leading-tight">{p.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    <span className="font-mono">{p.productId}</span> · {p.category} ·{" "}
+                    {formatPKR(p.price)}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                    p.stock <= 0 ? "bg-destructive text-white" : "bg-warning text-white"
+                  )}
+                >
+                  {p.stock <= 0 ? "OUT" : `${p.stock} left`}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-lg bg-[#EAF4EE] px-3 py-2.5 text-sm font-semibold text-[#2E7D4F]">
+            All products are well stocked — nothing needs restocking right now.
+          </p>
+        )}
       </div>
     </div>
   );

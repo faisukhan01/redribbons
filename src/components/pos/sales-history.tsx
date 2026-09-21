@@ -1,9 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ReceiptText } from "lucide-react";
+import { Printer, ReceiptText, ScrollText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaymentBadge } from "@/components/pos/shared";
+import { Receipt, printReceipt } from "@/components/pos/receipt";
 import { api } from "@/lib/api";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -13,6 +22,7 @@ export function SalesHistory() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"today" | "all">("today");
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
 
   // Initial load — setState happens in promise callbacks
   useEffect(() => {
@@ -98,7 +108,7 @@ export function SalesHistory() {
           </p>
           <div className="space-y-3">
             {visible.map((sale) => (
-              <div key={sale.id} className="rounded-xl border bg-card p-4 sm:p-5">
+              <div key={sale.id} className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/30 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <p className="font-mono text-base font-bold text-primary">
@@ -106,7 +116,17 @@ export function SalesHistory() {
                     </p>
                     <PaymentBadge method={sale.paymentMethod} />
                   </div>
-                  <p className="text-xl font-bold tabular-nums">{formatPKR(sale.total)}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReceiptSale(sale)}
+                      className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-primary"
+                      aria-label={`View receipt for ${sale.saleId}`}
+                    >
+                      <ScrollText className="h-3.5 w-3.5" /> Receipt
+                    </button>
+                    <p className="text-xl font-bold tabular-nums">{formatPKR(sale.total)}</p>
+                  </div>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatDateTime(sale.createdAt)} · Sold by {sale.salesman}
@@ -154,6 +174,32 @@ export function SalesHistory() {
           </div>
         </>
       )}
+      {/* Receipt dialog */}
+      <Dialog open={receiptSale !== null} onOpenChange={(v) => !v && setReceiptSale(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">
+              Receipt {receiptSale?.saleId}
+            </DialogTitle>
+            <DialogDescription>
+              Preview the customer receipt or print it for the counter.
+            </DialogDescription>
+          </DialogHeader>
+          {receiptSale ? (
+            <>
+              <div className="rr-scroll max-h-[55vh] overflow-y-auto rounded-lg bg-muted/50 p-3">
+                <Receipt sale={receiptSale} />
+              </div>
+              <Button
+                onClick={() => printReceipt(receiptSale)}
+                className="h-11 w-full gap-2 rounded-xl font-bold uppercase tracking-wide"
+              >
+                <Printer className="h-4 w-4" /> Print Receipt
+              </Button>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

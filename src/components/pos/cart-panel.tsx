@@ -267,7 +267,7 @@ export function CartPanel({
         size="lg"
         onClick={onComplete}
         disabled={!canComplete}
-        className="mt-3 h-14 w-full gap-2 rounded-xl text-base font-bold uppercase tracking-wide"
+        className="mt-3 h-14 w-full gap-2 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)] transition-shadow hover:shadow-[0_12px_28px_-10px_rgba(169,26,36,0.7)]"
       >
         {completing ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
         {completing ? "Completing…" : `Complete Sale · ${formatPKR(total)}`}
