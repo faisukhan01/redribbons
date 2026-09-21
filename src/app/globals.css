@@ -282,6 +282,16 @@ input[type="number"] {
   line-height: 1.65;
 }
 
+/* Keyboard focus ring for the custom chip/tile buttons that don't use the
+   shadcn Button — keeps tab navigation visible everywhere (a11y). */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
 @media print {
   @page {
     margin: 10mm;

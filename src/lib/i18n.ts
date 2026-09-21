@@ -159,6 +159,18 @@ const UR: Record<string, string> = {
   addOneItem: "آرڈر میں کم از کم ایک آئٹم شامل کریں۔",
   orderSaved: "محفوظ ہو گیا برائے",
   couldNotSave: "آرڈر محفوظ نہیں ہو سکا۔",
+  // advance (partial payment)
+  advanceReceived: "ایڈوانس وصول ہوا",
+  advancePh: "مثلاً 500",
+  balanceDue: "پک اپ پر باقی رقم",
+  advancePaid: "ایڈوانس ادا ہو گیا",
+  advanceTooLarge: "ایڈوانس کل رقم سے زیادہ نہیں ہو سکتا۔",
+  recordAdvance: "ایڈوانس درج کریں",
+  advanceDialogTitle: "ایڈوانس رقم درج کریں",
+  advanceDialogDesc: "گاہک نے ابھی جتنی رقم دی ہے وہ درج کریں — پک اپ پر باقی رقم واصل ہوگی۔",
+  advanceSavedToast: "ایڈوانس درج ہو گیا —",
+  balanceDueAtPickupToast: "پک اپ پر واجب الادا:",
+  clearAdvance: "ایڈوانس ہٹائیں",
 };
 
 /** Translate a key for the active language. Falls back to English. */
@@ -295,6 +307,18 @@ const EN: Record<string, string> = {
   addOneItem: "Add at least one item to the order.",
   orderSaved: "saved for",
   couldNotSave: "Could not save the pre-order.",
+  // advance (partial payment)
+  advanceReceived: "Advance received",
+  advancePh: "e.g. 500",
+  balanceDue: "Balance due",
+  advancePaid: "Advance paid",
+  advanceTooLarge: "Advance cannot be larger than the order total.",
+  recordAdvance: "Record advance",
+  advanceDialogTitle: "Record advance payment",
+  advanceDialogDesc: "Enter what the customer has already paid — the balance is collected at pickup.",
+  advanceSavedToast: "advance recorded —",
+  balanceDueAtPickupToast: "Balance due at pickup:",
+  clearAdvance: "Clear advance",
 };
 
 /** Convenience hook: `const { t, lang, toggle } = useT()` */

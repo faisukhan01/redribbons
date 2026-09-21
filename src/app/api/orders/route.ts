@@ -47,6 +47,9 @@ export async function POST(req: Request) {
     const customerPhone = String(body?.customerPhone ?? "").trim();
     const note = String(body?.note ?? "").trim().slice(0, 300);
     const createdBy = String(body?.createdBy ?? "Staff").trim() || "Staff";
+    // Optional advance (partial payment) taken at booking time — validated
+    // against the resolved total below (must be 0 ≤ advance ≤ total).
+    const advanceRaw = body?.advance === undefined || body?.advance === null || body?.advance === "" ? 0 : Number(body.advance);
     const rawItems: Array<{ code: string; quantity: number }> = Array.isArray(body?.items)
       ? body.items
       : [];
@@ -56,6 +59,9 @@ export async function POST(req: Request) {
     }
     if (customerPhone && !/^[0-9+\-\s()]{5,20}$/.test(customerPhone)) {
       return NextResponse.json({ error: "Please enter a valid phone number." }, { status: 400 });
+    }
+    if (!Number.isFinite(advanceRaw) || advanceRaw < 0) {
+      return NextResponse.json({ error: "Advance must be a positive amount." }, { status: 400 });
     }
     if (rawItems.length === 0) {
       return NextResponse.json({ error: "Add at least one item to the order." }, { status: 400 });
@@ -93,6 +99,10 @@ export async function POST(req: Request) {
           lines.push({ code: p.productId, name: p.name, quantity: qty, price: p.price, subtotal });
         }
         total = Math.round(total * 100) / 100;
+        if (advanceRaw > total) {
+          throw new Error("Advance cannot be larger than the order total.");
+        }
+        const advance = Math.round(advanceRaw * 100) / 100;
 
         // Sequential human-facing order id (RO-000001) — based on the highest
         // existing number (NOT count) so removing closed orders can never
@@ -111,6 +121,7 @@ export async function POST(req: Request) {
             customerPhone: customerPhone.slice(0, 20),
             itemsJson: JSON.stringify(lines),
             total,
+            advance,
             status: "PENDING",
             dueAt,
             note,
@@ -122,7 +133,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ order: serialize(order) }, { status: 201 });
     } catch (txErr) {
       const msg = txErr instanceof Error ? txErr.message : "Pre-order could not be saved.";
-      if (msg.includes("No product found")) {
+      if (msg.includes("No product found") || msg.includes("Advance cannot")) {
         return NextResponse.json({ error: msg }, { status: 400 });
       }
       throw txErr;

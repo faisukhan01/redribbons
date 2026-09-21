@@ -70,6 +70,7 @@ model Order {
   customerPhone String    @default("")
   itemsJson     String // JSON array: [{ code, name, quantity, price }]
   total         Float
+  advance       Float     @default(0) // partial payment taken at booking time
   status        String    @default("PENDING") // PENDING | READY | DONE | CANCELLED
   dueAt         DateTime? // requested pickup time
   note          String    @default("")

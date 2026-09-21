@@ -44,6 +44,7 @@ interface BackupOrder {
   customerPhone: string;
   items: Array<{ code: string; name: string; quantity: number; price: number; subtotal: number }>;
   total: number;
+  advance?: number;
   status: string;
   dueAt: string | null;
   note: string;
@@ -116,6 +117,7 @@ export async function GET() {
           customerPhone: o.customerPhone,
           items,
           total: o.total,
+          advance: o.advance,
           status: o.status,
           dueAt: o.dueAt ? o.dueAt.toISOString() : null,
           note: o.note,
@@ -302,6 +304,7 @@ export async function POST(req: Request) {
             customerPhone: String(o?.customerPhone ?? "").trim().slice(0, 20),
             itemsJson: JSON.stringify(Array.isArray(o.items) ? o.items : []),
             total: Number(o?.total) || 0,
+            advance: Math.max(0, Number(o?.advance) || 0),
             status,
             dueAt: due && !Number.isNaN(due.getTime()) ? due : null,
             note: String(o?.note ?? "").slice(0, 300),

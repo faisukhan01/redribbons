@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Printer, ReceiptText, ScrollText, Search, BadgePercent } from "lucide-react";
+import { CalendarDays, Download, Printer, ReceiptText, ScrollText, Search, BadgePercent } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +27,12 @@ import type { Sale, Stats } from "@/lib/types";
 export function SalesHistory() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"today" | "all">("today");
+  const [filter, setFilter] = useState<"today" | "date" | "all">("today");
+  const [dayFilter, setDayFilter] = useState(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
   const [query, setQuery] = useState("");
   const [pay, setPay] = useState<"all" | "CASH" | "ONLINE">("all");
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
@@ -60,6 +65,16 @@ export function SalesHistory() {
         Math.floor((Date.now() - tzOffset * 60_000) / 86_400_000) * 86_400_000 +
         tzOffset * 60_000;
       list = list.filter((s) => new Date(s.createdAt).getTime() >= dayStart);
+    } else if (filter === "date" && dayFilter) {
+      const [y, m, d] = dayFilter.split("-").map(Number);
+      if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+        const start = new Date(y, m - 1, d).getTime();
+        const end = start + 86_400_000;
+        list = list.filter((s) => {
+          const t = new Date(s.createdAt).getTime();
+          return t >= start && t < end;
+        });
+      }
     }
     if (pay !== "all") list = list.filter((s) => s.paymentMethod === pay);
     const q = query.trim().toLowerCase();
@@ -72,7 +87,7 @@ export function SalesHistory() {
       );
     }
     return list;
-  }, [sales, filter, pay, query]);
+  }, [sales, filter, dayFilter, pay, query]);
 
   const todayTotal = visible.reduce((s, x) => s + x.total, 0);
 
@@ -81,8 +96,9 @@ export function SalesHistory() {
       toast.error("Nothing to export — no sales in the selected filter.");
       return;
     }
+    const stamp = filter === "date" ? dayFilter || todayStamp() : filter === "today" ? todayStamp() : "all";
     downloadCSV(
-      `red-ribbons-sales-${todayStamp()}.csv`,
+      `red-ribbons-sales-${stamp}.csv`,
       ["Sale ID", "Date & Time", "Salesman", "Payment", "Items", "Item Detail", "Discount (Rs.)", "Total (Rs.)", "Received (Rs.)", "Change (Rs.)"],
       visible.map((s) => [
         s.saleId,
@@ -165,22 +181,31 @@ export function SalesHistory() {
             Export CSV
           </Button>
           <div className="flex rounded-lg border bg-card p-1">
-            {(["today", "all"] as const).map((f) => (
+            {(["today", "date", "all"] as const).map((f) => (
               <button
                 key={f}
                 type="button"
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors",
+                  "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors",
                   filter === f
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {f === "today" ? "Today" : "All"}
+                {f === "today" ? "Today" : f === "date" ? <CalendarDays className="h-4 w-4" /> : "All"}
               </button>
             ))}
           </div>
+          {filter === "date" ? (
+            <Input
+              type="date"
+              value={dayFilter}
+              onChange={(e) => setDayFilter(e.target.value)}
+              aria-label="Show sales for a specific date"
+              className="h-9 w-40 text-sm"
+            />
+          ) : null}
         </div>
       </div>
 
@@ -202,9 +227,11 @@ export function SalesHistory() {
           <p className="mt-3 text-sm text-muted-foreground">
             {sales && (sales.length > 0) && (query.trim() !== "" || pay !== "all")
               ? "No sales match your search or filter."
-              : filter === "today"
-                ? "No sales have been recorded today yet."
-                : "No sales recorded yet."}
+              : filter === "date"
+                ? `No sales recorded on ${dayFilter}.`
+                : filter === "today"
+                  ? "No sales have been recorded today yet."
+                  : "No sales recorded yet."}
           </p>
         </div>
       ) : (

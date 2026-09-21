@@ -127,6 +127,8 @@ export interface Order {
   customerPhone: string;
   items: OrderLine[];
   total: number;
+  /** Partial payment taken at booking time (Rs). Balance = total - advance. */
+  advance: number;
   status: OrderStatus;
   dueAt: string | null; // ISO timestamp of the requested pickup time
   note: string;
@@ -188,6 +190,19 @@ export interface BackupFile {
     }>;
   }>;
   settings?: Record<string, string>;
+  orders?: Array<{
+    orderId: string;
+    customerName: string;
+    customerPhone: string;
+    items: Array<{ code: string; name: string; quantity: number; price: number; subtotal: number }>;
+    total: number;
+    advance?: number;
+    status: string;
+    dueAt: string | null;
+    note: string;
+    createdBy: string;
+    createdAt: string;
+  }>;
 }
 
 export interface ImportRow {

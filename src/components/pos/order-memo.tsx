@@ -97,6 +97,20 @@ export function OrderMemo({ order, className }: { order: Order; className?: stri
         <span className="tabular-nums">{formatPKR(order.total)}</span>
       </div>
 
+      {/* Advance / balance */}
+      {order.advance > 0 ? (
+        <>
+          <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] font-semibold">
+            <span className="uppercase tracking-wider">Advance paid</span>
+            <span className="tabular-nums">{formatPKR(order.advance)}</span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between gap-2 text-sm font-bold">
+            <span className="uppercase tracking-wider">Balance due</span>
+            <span className="tabular-nums">{formatPKR(Math.max(0, order.total - order.advance))}</span>
+          </div>
+        </>
+      ) : null}
+
       {order.note ? (
         <>
           <MemoDivider />
@@ -110,9 +124,11 @@ export function OrderMemo({ order, className }: { order: Order; className?: stri
 
       {/* Footer */}
       <div className="space-y-0.5 text-center text-muted-foreground">
-        <p className="text-[11px] font-semibold text-foreground">Pay at pickup — Cash or Online</p>
+        <p className="text-[11px] font-semibold text-foreground">
+          {order.advance > 0 ? "Pay balance at pickup — Cash or Online" : "Pay at pickup — Cash or Online"}
+        </p>
         <p className="text-[11px] font-semibold text-foreground" style={{ direction: "rtl" }}>
-          پک اپ کے وقت ادائیگی
+          {order.advance > 0 ? "بقیہ رقم پک اپ کے وقت" : "پک اپ کے وقت ادائیگی"}
         </p>
         <p className="text-[9px] uppercase tracking-[0.25em]">Red Ribbons Bakery</p>
         <p className="text-[9px]">

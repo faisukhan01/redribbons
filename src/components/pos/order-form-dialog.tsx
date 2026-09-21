@@ -62,6 +62,7 @@ export function OrderFormDialog({
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [search, setSearch] = useState("");
   const [dueInput, setDueInput] = useState("");
+  const [advance, setAdvance] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,7 @@ export function OrderFormDialog({
       setLines([]);
       setSearch("");
       setDueInput("");
+      setAdvance("");
       setNote("");
       // focus the first field once mounted
       setTimeout(() => nameRef.current?.focus(), 50);
@@ -89,6 +91,13 @@ export function OrderFormDialog({
   }, [search, products]);
 
   const total = lines.reduce((s, l) => s + l.product.price * l.quantity, 0);
+
+  // Advance (partial payment) — clamped against the live total; only a
+  // positive, finite number counts. Wrong input falls back to 0 at save time.
+  const advanceNum = Number(advance);
+  const advanceValid = advance.trim() === "" || (Number.isFinite(advanceNum) && advanceNum >= 0);
+  const advanceValue = advanceValid && advanceNum > 0 ? Math.min(advanceNum, total) : 0;
+  const balance = Math.max(0, total - advanceValue);
 
   function addLine(p: Product) {
     setLines((prev) => {
@@ -126,6 +135,10 @@ export function OrderFormDialog({
       toast.error(t("addOneItem"));
       return;
     }
+    if (!advanceValid) {
+      toast.error(t("advanceTooLarge"));
+      return;
+    }
     setSaving(true);
     try {
       const res = await api<{ order: Order }>("/api/orders", {
@@ -135,6 +148,7 @@ export function OrderFormDialog({
           customerPhone: phone,
           items: lines.map((l) => ({ code: l.product.productId, quantity: l.quantity })),
           dueAt: resolveDueAt(),
+          advance: advanceValue > 0 ? advanceValue : undefined,
           note,
           createdBy,
         }),
@@ -323,6 +337,50 @@ export function OrderFormDialog({
             />
           </div>
 
+          {/* Advance (partial payment) */}
+          <div className="space-y-2">
+            <label
+              htmlFor="order-advance"
+              className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
+            >
+              {t("advanceReceived")}
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[500, 1000, 2000].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => setAdvance(String(amt))}
+                  className="rounded-full border bg-card px-3 py-1.5 text-xs font-bold tabular-nums transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  {formatPKR(amt)}
+                </button>
+              ))}
+              {advance ? (
+                <button
+                  type="button"
+                  onClick={() => setAdvance("")}
+                  className="rounded-full border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive/10"
+                >
+                  {t("clearAdvance")}
+                </button>
+              ) : null}
+            </div>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                Rs.
+              </span>
+              <Input
+                id="order-advance"
+                value={advance}
+                onChange={(e) => setAdvance(e.target.value.replace(/[^0-9.]/g, ""))}
+                placeholder={t("advancePh")}
+                inputMode="decimal"
+                className={cn("pl-10 text-right font-bold tabular-nums", !advanceValid && "border-destructive")}
+              />
+            </div>
+          </div>
+
           {/* Note */}
           <div className="space-y-1.5">
             <label htmlFor="order-note" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -347,6 +405,11 @@ export function OrderFormDialog({
               <p className="font-display text-xl font-bold tabular-nums text-primary">
                 {formatPKR(total)}
               </p>
+              {advanceValue > 0 ? (
+                <p className="mt-0.5 text-[11px] font-bold tabular-nums text-[#2E7D4F]">
+                  {t("advancePaid")} {formatPKR(advanceValue)} · {t("balanceDue")} {formatPKR(balance)}
+                </p>
+              ) : null}
             </div>
             <Button
               onClick={() => void save()}

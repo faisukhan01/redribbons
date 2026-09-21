@@ -15,8 +15,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
 
     const body = await req.json().catch(() => null);
-    const status = String(body?.status ?? "").trim().toUpperCase();
-    if (!(STATUSES as readonly string[]).includes(status)) {
+    const rawStatus = body?.status === undefined || body?.status === null ? "" : String(body.status).trim().toUpperCase();
+    if (rawStatus && !(STATUSES as readonly string[]).includes(rawStatus)) {
       return NextResponse.json({ error: "Invalid status." }, { status: 400 });
     }
 
@@ -31,11 +31,38 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       );
     }
 
-    const data: { status: string; note?: string } = { status };
+    const data: { status?: string; note?: string; advance?: number } = {};
+    if (rawStatus) data.status = rawStatus;
     if (typeof body?.note === "string") data.note = body.note.trim().slice(0, 300);
+    // Optional advance update (customer pays a partial amount on the phone)
+    if (body?.advance !== undefined && body?.advance !== null && body?.advance !== "") {
+      const advance = Number(body.advance);
+      if (!Number.isFinite(advance) || advance < 0) {
+        return NextResponse.json({ error: "Advance must be a positive amount." }, { status: 400 });
+      }
+      const rounded = Math.round(advance * 100) / 100;
+      if (rounded > existing.total) {
+        return NextResponse.json(
+          { error: `Advance cannot be larger than the order total (${existing.total}).` },
+          { status: 400 }
+        );
+      }
+      data.advance = rounded;
+    }
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+    }
 
     const order = await db.order.update({ where: { id: numericId }, data });
-    return NextResponse.json({ order: { id: order.id, orderId: order.orderId, status: order.status } });
+    return NextResponse.json({
+      order: {
+        id: order.id,
+        orderId: order.orderId,
+        status: order.status,
+        advance: order.advance,
+        total: order.total,
+      },
+    });
   } catch (err) {
     console.error("order patch error", err);
     return NextResponse.json({ error: "Unable to update the order." }, { status: 500 });

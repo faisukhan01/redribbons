@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Trash2,
+  Wallet,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +30,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { OrderFormDialog } from "@/components/pos/order-form-dialog";
 import { printOrderMemo } from "@/components/pos/order-memo";
 import { api } from "@/lib/api";
@@ -75,6 +83,7 @@ function waMessage(o: Order, pickupText: string | null): string {
   const lines = o.items
     .map((i) => `${i.quantity}× ${i.name} — ${formatPKR(i.subtotal)}`)
     .join("\n");
+  const advance = o.advance > 0;
   return [
     `Red Ribbons Bakery — Pre-order ${o.orderId}`,
     ``,
@@ -83,9 +92,11 @@ function waMessage(o: Order, pickupText: string | null): string {
     lines,
     ``,
     `Total: ${formatPKR(o.total)}`,
+    advance ? `Advance paid: ${formatPKR(o.advance)}` : "",
+    advance ? `Balance at pickup: ${formatPKR(o.total - o.advance)}` : "",
     pickupText ? `Pickup: ${pickupText}` : "",
     ``,
-    `Pay at pickup. Thank you! 🎀`,
+    advance ? "Please bring the balance at pickup. Thank you! 🎀" : "Pay at pickup. Thank you! 🎀",
   ]
     .filter((l) => l !== "")
     .join("\n");
@@ -101,6 +112,8 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
+  const [advanceTarget, setAdvanceTarget] = useState<Order | null>(null);
+  const [advanceInput, setAdvanceInput] = useState("");
   const setIntent = useCartIntent((s) => s.setIntent);
 
   const load = useCallback(async () => {
@@ -193,6 +206,12 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
     }
     setIntent(items, order.orderId);
     onNavigate("pos");
+    if (order.advance > 0) {
+      const balance = Math.max(0, order.total - order.advance);
+      toast.info(
+        `${t("balanceDueAtPickupToast")} ${formatPKR(balance)} (${order.orderId})`
+      );
+    }
     if (dropped > 0) {
       toast.warning(
         isUr
@@ -206,6 +225,40 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
   function printMemo(order: Order) {
     printOrderMemo(order);
     toast.success(t("memoPrinted"));
+  }
+
+  /** Save an advance (partial payment) against a live order. */
+  async function saveAdvance() {
+    if (!advanceTarget) return;
+    const value = Number(advanceInput);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error(t("advanceTooLarge"));
+      return;
+    }
+    if (value > advanceTarget.total) {
+      toast.error(t("advanceTooLarge"));
+      return;
+    }
+    const target = advanceTarget;
+    setBusyId(target.id);
+    try {
+      await api(`/api/orders/${target.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ advance: Math.round(value * 100) / 100 }),
+      });
+      setOrders((prev) =>
+        (prev ?? []).map((o) => (o.id === target.id ? { ...o, advance: Math.round(value * 100) / 100 } : o))
+      );
+      toast.success(
+        `${target.orderId} ${t("advanceSavedToast")} ${formatPKR(value)} · ${t("balanceDue")} ${formatPKR(target.total - value)}`
+      );
+      setAdvanceTarget(null);
+      setAdvanceInput("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("couldNotUpdate"));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   const statusLabel = (s: OrderStatus): string =>
@@ -389,6 +442,13 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                   ))}
                 </ul>
 
+                {o.advance > 0 ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#EAF4EE] px-2.5 py-1 text-[11px] font-bold text-[#2E7D4F]">
+                    <Wallet className="h-3 w-3" />
+                    {t("advancePaid")} {formatPKR(o.advance)} · {t("balanceDue")} {formatPKR(Math.max(0, o.total - o.advance))}
+                  </p>
+                ) : null}
+
                 {o.note ? (
                   <p className="mt-2 rounded-lg border border-warning/30 bg-[#FCF7EF] px-2.5 py-1.5 text-xs font-semibold italic text-foreground">
                     “{o.note}”
@@ -484,6 +544,23 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => {
+                        setAdvanceInput(o.advance > 0 ? String(o.advance) : "");
+                        setAdvanceTarget(o);
+                      }}
+                      className={cn(
+                        "h-8 gap-1.5 rounded-lg text-xs font-bold",
+                        o.advance > 0 && "border-[#2E7D4F]/40 text-[#2E7D4F] hover:bg-[#2E7D4F]/10"
+                      )}
+                      title="Record a partial payment for this order"
+                    >
+                      <Wallet className="h-3.5 w-3.5" /> {t("recordAdvance")}
+                    </Button>
+                  ) : null}
+                  {live ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
                       disabled={busyId === o.id}
                       onClick={() => void setStatus(o, "CANCELLED", `${o.orderId} ${t("cancelledDone")}`)}
                       className="h-8 gap-1.5 rounded-lg text-xs font-bold text-destructive hover:bg-destructive hover:text-white"
@@ -537,6 +614,91 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Record advance (partial payment) dialog */}
+      <Dialog
+        open={!!advanceTarget}
+        onOpenChange={(v) => {
+          if (!v) setAdvanceTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">
+              {t("advanceDialogTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("advanceDialogDesc")}</DialogDescription>
+          </DialogHeader>
+          {advanceTarget ? (
+            <div className={cn("space-y-3", isUr && "rr-urdu")}>
+              <div className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-display text-lg font-bold">{advanceTarget.customerName}</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">{advanceTarget.orderId}</p>
+                </div>
+                <p className="shrink-0 text-right font-display text-lg font-bold tabular-nums text-primary">
+                  {formatPKR(advanceTarget.total)}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {[500, 1000, 2000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    disabled={amt > advanceTarget.total}
+                    onClick={() => setAdvanceInput(String(amt))}
+                    className="rounded-full border bg-card px-3 py-1.5 text-xs font-bold tabular-nums transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                  >
+                    {formatPKR(amt)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                  Rs.
+                </span>
+                <Input
+                  value={advanceInput}
+                  onChange={(e) => setAdvanceInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder={t("advancePh")}
+                  inputMode="decimal"
+                  aria-label={t("advanceReceived")}
+                  className="pl-10 text-right text-lg font-bold tabular-nums"
+                  autoFocus
+                />
+              </div>
+              {Number(advanceInput) > advanceTarget.total ? (
+                <p className="text-xs font-bold text-destructive">{t("advanceTooLarge")}</p>
+              ) : Number(advanceInput) > 0 ? (
+                <p className="text-sm font-bold tabular-nums text-[#2E7D4F]">
+                  {t("balanceDue")}: {formatPKR(Math.max(0, advanceTarget.total - Number(advanceInput)))}
+                </p>
+              ) : null}
+
+              <Button
+                onClick={() => void saveAdvance()}
+                disabled={
+                  busyId === advanceTarget.id ||
+                  advanceInput.trim() === "" ||
+                  !Number.isFinite(Number(advanceInput)) ||
+                  Number(advanceInput) < 0 ||
+                  Number(advanceInput) > advanceTarget.total
+                }
+                className="h-11 w-full gap-2 rounded-xl font-bold"
+              >
+                {busyId === advanceTarget.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wallet className="h-4 w-4" />
+                )}
+                {t("recordAdvance")}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

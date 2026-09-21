@@ -130,8 +130,14 @@ export async function POST(req: Request) {
           received = total;
         }
 
-        const count = await tx.sale.count();
-        const saleId = `RR-${String(count + 1).padStart(6, "0")}`;
+        // Sequential human-facing sale id (RR-000124) — based on the highest
+        // existing number (NOT count) so an ID gap can never cause a duplicate.
+        const existing = await tx.sale.findMany({ select: { saleId: true } });
+        const maxNum = existing.reduce((m, s) => {
+          const n = parseInt(s.saleId.slice(3), 10);
+          return Number.isFinite(n) && n > m ? n : m;
+        }, 0);
+        const saleId = `RR-${String(maxNum + 1).padStart(6, "0")}`;
 
         const created = await tx.sale.create({
           data: {
