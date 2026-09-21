@@ -1,0 +1,235 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { ensureSeed } from "@/lib/seed";
+
+interface BackupItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+interface BackupSale {
+  saleId: string;
+  salesman: string;
+  total: number;
+  paymentMethod: string;
+  amountReceived: number | null;
+  changeReturned: number | null;
+  createdAt: string;
+  items: BackupItem[];
+}
+interface BackupProduct {
+  productId: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  soldQuantity: number;
+}
+export interface BackupFile {
+  app: string;
+  version: number;
+  exportedAt: string;
+  products: BackupProduct[];
+  sales: BackupSale[];
+}
+
+// GET /api/backup — download a full JSON snapshot (products + sales)
+export async function GET() {
+  try {
+    await ensureSeed();
+    const [products, sales] = await Promise.all([
+      db.product.findMany({
+        orderBy: { productId: "asc" },
+        select: {
+          productId: true,
+          name: true,
+          category: true,
+          price: true,
+          stock: true,
+          soldQuantity: true,
+        },
+      }),
+      db.sale.findMany({
+        orderBy: { id: "asc" },
+        include: {
+          items: {
+            include: { product: { select: { productId: true } } },
+          },
+        },
+      }),
+    ]);
+
+    const backup: BackupFile = {
+      app: "red-ribbons-pos",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      products,
+      sales: sales.map((s) => ({
+        saleId: s.saleId,
+        salesman: s.salesman,
+        total: s.total,
+        paymentMethod: s.paymentMethod,
+        amountReceived: s.amountReceived,
+        changeReturned: s.changeReturned,
+        createdAt: s.createdAt.toISOString(),
+        items: s.items.map((i) => ({
+          productId: i.product.productId,
+          name: i.name,
+          quantity: i.quantity,
+          price: i.price,
+          subtotal: i.subtotal,
+        })),
+      })),
+    };
+    return NextResponse.json(backup);
+  } catch (err) {
+    console.error("backup error", err);
+    return NextResponse.json(
+      { error: "Could not create the backup right now." },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/backup — restore from a JSON snapshot (replaces products & sales)
+export async function POST(req: Request) {
+  try {
+    await ensureSeed();
+    const body = (await req.json().catch(() => null)) as BackupFile | null;
+    if (!body || body.app !== "red-ribbons-pos" || !Array.isArray(body.products) || !Array.isArray(body.sales)) {
+      return NextResponse.json(
+        { error: "This file is not a valid Red Ribbons backup." },
+        { status: 400 }
+      );
+    }
+
+    // Validate products
+    const products: BackupProduct[] = [];
+    const seenIds = new Set<string>();
+    for (const p of body.products) {
+      const id = String(p?.productId ?? "").trim();
+      const name = String(p?.name ?? "").trim();
+      const category = String(p?.category ?? "").trim() || "Bakery";
+      const price = Number(p?.price);
+      const stock = Math.max(0, Math.floor(Number(p?.stock) || 0));
+      const sold = Math.max(0, Math.floor(Number(p?.soldQuantity) || 0));
+      if (!id || !name || !Number.isFinite(price) || price < 0) {
+        return NextResponse.json(
+          { error: `Backup contains an invalid product row (ID "${id || "?"}").` },
+          { status: 400 }
+        );
+      }
+      if (seenIds.has(id)) {
+        return NextResponse.json(
+          { error: `Backup contains duplicate product ID "${id}".` },
+          { status: 400 }
+        );
+      }
+      seenIds.add(id);
+      products.push({ productId: id, name, category, price, stock, soldQuantity: sold });
+    }
+
+    // Validate sales
+    const sales: BackupSale[] = [];
+    const seenSales = new Set<string>();
+    for (const s of body.sales) {
+      const saleId = String(s?.saleId ?? "").trim();
+      const method = String(s?.paymentMethod ?? "").toUpperCase();
+      if (!saleId || (method !== "CASH" && method !== "ONLINE")) {
+        return NextResponse.json(
+          { error: `Backup contains an invalid sale row (ID "${saleId || "?"}").` },
+          { status: 400 }
+        );
+      }
+      if (seenSales.has(saleId)) {
+        return NextResponse.json(
+          { error: `Backup contains duplicate sale ID "${saleId}".` },
+          { status: 400 }
+        );
+      }
+      seenSales.add(saleId);
+      const created = s.createdAt ? new Date(s.createdAt) : new Date();
+      sales.push({
+        saleId,
+        salesman: String(s?.salesman ?? "Salesman").trim() || "Salesman",
+        total: Number(s?.total) || 0,
+        paymentMethod: method,
+        amountReceived: s?.amountReceived == null ? null : Number(s.amountReceived),
+        changeReturned: s?.changeReturned == null ? null : Number(s.changeReturned),
+        createdAt: Number.isNaN(created.getTime()) ? new Date() : created,
+        items: Array.isArray(s.items)
+          ? s.items.map((i) => ({
+              productId: String(i?.productId ?? "").trim(),
+              name: String(i?.name ?? "").trim(),
+              quantity: Math.max(0, Math.floor(Number(i?.quantity) || 0)),
+              price: Number(i?.price) || 0,
+              subtotal: Number(i?.subtotal) || 0,
+            }))
+          : [],
+      });
+    }
+
+    const result = await db.$transaction(async (tx) => {
+      await tx.saleItem.deleteMany();
+      await tx.sale.deleteMany();
+      await tx.product.deleteMany();
+
+      const idMap = new Map<string, number>();
+      for (const p of products) {
+        const created = await tx.product.create({
+          data: {
+            productId: p.productId,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            stock: p.stock,
+            soldQuantity: p.soldQuantity,
+          },
+        });
+        idMap.set(p.productId, created.id);
+      }
+
+      let restoredSales = 0;
+      let restoredItems = 0;
+      let skippedItems = 0;
+      for (const s of sales) {
+        const lines = s.items
+          .filter((i) => i.quantity > 0 && idMap.has(i.productId))
+          .map((i) => ({
+            productId: idMap.get(i.productId)!,
+            name: i.name || "Item",
+            quantity: i.quantity,
+            price: i.price,
+            subtotal: i.subtotal > 0 ? i.subtotal : i.price * i.quantity,
+          }));
+        skippedItems += s.items.length - lines.length;
+        if (lines.length === 0) continue;
+        await tx.sale.create({
+          data: {
+            saleId: s.saleId,
+            salesman: s.salesman,
+            total: s.total,
+            paymentMethod: s.paymentMethod,
+            amountReceived: s.amountReceived,
+            changeReturned: s.changeReturned,
+            createdAt: s.createdAt,
+            items: { create: lines },
+          },
+        });
+        restoredSales += 1;
+        restoredItems += lines.length;
+      }
+      return { products: products.length, sales: restoredSales, items: restoredItems, skippedItems };
+    });
+
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("backup restore error", err);
+    return NextResponse.json(
+      { error: "Restore failed. The database was left unchanged." },
+      { status: 500 }
+    );
+  }
+}

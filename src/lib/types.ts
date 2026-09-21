@@ -87,6 +87,7 @@ export interface DayReport {
 
 export interface Stats {
   todaySales: number;
+  yesterdayTotal: number;
   salesTodayCount: number;
   cashToday: number;
   onlineToday: number;
@@ -99,6 +100,37 @@ export interface Stats {
   trend: TrendPoint[];
   topProducts: TopProduct[];
   report: DayReport;
+}
+
+/** Snapshot file written by /api/backup (GET) and consumed by restore (POST). */
+export interface BackupFile {
+  app: string;
+  version: number;
+  exportedAt: string;
+  products: Array<{
+    productId: string;
+    name: string;
+    category: string;
+    price: number;
+    stock: number;
+    soldQuantity: number;
+  }>;
+  sales: Array<{
+    saleId: string;
+    salesman: string;
+    total: number;
+    paymentMethod: string;
+    amountReceived: number | null;
+    changeReturned: number | null;
+    createdAt: string;
+    items: Array<{
+      productId: string;
+      name: string;
+      quantity: number;
+      price: number;
+      subtotal: number;
+    }>;
+  }>;
 }
 
 export interface ImportRow {

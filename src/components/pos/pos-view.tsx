@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CornerDownLeft, Loader2, Plus, Search, ShoppingBag } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CornerDownLeft, Loader2, Plus, ReceiptText, Search, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,11 @@ import { useHeldSales } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { CartItem, Product, Sale } from "@/lib/types";
 
+function dayStartMs() {
+  const tzOffset = new Date().getTimezoneOffset();
+  return Math.floor((Date.now() - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
+}
+
 export function PosView({ salesmanName }: { salesmanName: string }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [idInput, setIdInput] = useState("");
@@ -26,6 +31,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const [completing, setCompleting] = useState(false);
   const [success, setSuccess] = useState<Sale | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [myDay, setMyDay] = useState<{ count: number; revenue: number; items: number } | null>(null);
+
+  const idInputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const held = useHeldSales((s) => s.held);
   const holdSale = useHeldSales((s) => s.hold);
@@ -42,6 +51,22 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     }
   }, []);
 
+  // The salesman's own numbers for today (shown as chips in the header)
+  const loadMyDay = useCallback(async () => {
+    try {
+      const data = await api<{ sales: Sale[] }>(
+        `/api/sales?limit=500&salesman=${encodeURIComponent(salesmanName)}&since=${new Date(dayStartMs()).toISOString()}`
+      );
+      setMyDay({
+        count: data.sales.length,
+        revenue: data.sales.reduce((s, x) => s + x.total, 0),
+        items: data.sales.reduce((s, x) => s + x.items.reduce((n, i) => n + i.quantity, 0), 0),
+      });
+    } catch {
+      // non-critical — silently ignore
+    }
+  }, [salesmanName]);
+
   // Initial load — setState happens in promise callbacks
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +81,34 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    void loadMyDay();
+  }, [loadMyDay]);
+
+  // Counter keyboard shortcuts: F2 → Product ID, F3 → payment, F4 → hold, / → search
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (e.key === "F2") {
+        e.preventDefault();
+        idInputRef.current?.focus();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        setPaymentMethod((m) => (m === "CASH" ? "ONLINE" : "CASH"));
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        handleHoldRef.current();
+      } else if (e.key === "/" && !typing) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const byCode = useMemo(() => {
@@ -170,6 +223,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     });
   }
 
+  // Latest handleHold for the global F4 listener (avoids stale closure)
+  const handleHoldRef = useRef(handleHold);
+  handleHoldRef.current = handleHold;
+
   /** Resume a parked order. If the counter has an active cart, swap the two. */
   function handleResume(id: string) {
     const h = takeHeld(id);
@@ -225,6 +282,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
       setSheetOpen(false);
       toast.success("Sale completed successfully");
       void load(); // refresh stock
+      void loadMyDay(); // refresh the header chips
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sale could not be completed.");
     } finally {
@@ -238,7 +296,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold sm:text-3xl">POS — New Sale</h1>
           <p className="text-sm text-muted-foreground">
@@ -247,6 +305,33 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               Tip: “101*3” adds 3 at once
             </span>
           </p>
+        </div>
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          {/* Shortcut hints (desktop) */}
+          <div className="hidden items-center gap-1.5 text-[11px] font-semibold text-muted-foreground lg:flex" aria-hidden>
+            <Kbd>F2</Kbd> ID
+            <Kbd>F3</Kbd> Payment
+            <Kbd>F4</Kbd> Hold
+            <Kbd>/</Kbd> Search
+          </div>
+          {/* Salesman's own day so far */}
+          {myDay ? (
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm">
+                <ShoppingBag className="h-3.5 w-3.5 text-primary" />
+                Today: <span className="tabular-nums font-bold">{myDay.count}</span>
+                {myDay.count === 1 ? "sale" : "sales"}
+              </span>
+              <span className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm">
+                <ReceiptText className="h-3.5 w-3.5 text-primary" />
+                <span className="tabular-nums font-bold text-primary">{formatPKR(myDay.revenue)}</span>
+              </span>
+              <span className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm sm:flex">
+                <span className="tabular-nums font-bold">{myDay.items}</span>
+                {myDay.items === 1 ? "item" : "items"} sold
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -264,12 +349,16 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               <div className="relative min-w-0 flex-1">
                 <Input
                   id="pos-id"
+                  ref={idInputRef}
                   value={idInput}
                   onChange={(e) => setIdInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       handleIdAdd();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      setIdInput("");
                     }
                   }}
                   placeholder="e.g. 101 · or 101*3 for qty"
@@ -335,9 +424,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                ref={searchRef}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Or search by product name…"
+                placeholder="Or search by product name…  ( / )"
                 className="pl-9"
                 aria-label="Search products"
               />
@@ -466,5 +556,14 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+/** Tiny keyboard-key chip used in the shortcut hints. */
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded-md border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-bold text-muted-foreground shadow-sm">
+      {children}
+    </kbd>
   );
 }

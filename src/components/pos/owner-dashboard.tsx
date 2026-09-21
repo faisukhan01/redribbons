@@ -33,6 +33,7 @@ function TrendStrip({ stats }: { stats: Stats }) {
   const weekTotal = trend.reduce((s, t) => s + t.total, 0);
   const weekCount = trend.reduce((s, t) => s + t.count, 0);
   const best = trend.reduce((b, t) => (t.total > b.total ? t : b), trend[0]);
+  const allZero = weekTotal === 0;
 
   return (
     <div className="rounded-xl border bg-card p-5">
@@ -48,46 +49,58 @@ function TrendStrip({ stats }: { stats: Stats }) {
         </p>
       </div>
 
-      <div className="mt-4 flex h-28 items-end gap-2 sm:gap-3">
-        {trend.map((t, i) => {
-          const isToday = i === trend.length - 1;
-          const pct = Math.max(4, Math.round((t.total / max) * 100));
-          return (
-            <div key={t.date} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-              <p
-                className={cn(
-                  "text-[10px] font-bold tabular-nums",
-                  isToday ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {t.total > 0 ? formatNumber(t.total) : "–"}
-              </p>
-              <div
-                role="img"
-                aria-label={`${t.label}: ${formatPKR(t.total)} from ${t.count} sales`}
-                title={`${t.label} · ${formatPKR(t.total)} · ${t.count} ${t.count === 1 ? "sale" : "sales"}`}
-                style={{ height: `${pct}%` }}
-                className={cn(
-                  "w-full max-w-9 rounded-t-md transition-all duration-300 hover:opacity-80",
-                  t.total === 0
-                    ? "bg-muted"
-                    : isToday
-                      ? "bg-gradient-to-t from-[#7A0F15] to-primary shadow-[0_4px_12px_-4px_rgba(169,26,36,0.6)]"
-                      : "bg-primary/45"
-                )}
-              />
-              <p
-                className={cn(
-                  "text-[10px] font-bold uppercase tracking-wide",
-                  isToday ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {isToday ? "Today" : t.label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+      {allZero ? (
+        <div className="mt-4 flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
+          <TrendingUp className="h-5 w-5 text-muted-foreground/40" />
+          <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
+            No sales in the last 7 days yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Complete a sale at the counter and today’s bar will rise here.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 flex h-28 items-end gap-2 sm:gap-3">
+          {trend.map((t, i) => {
+            const isToday = i === trend.length - 1;
+            const pct = Math.max(4, Math.round((t.total / max) * 100));
+            return (
+              <div key={t.date} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                <p
+                  className={cn(
+                    "text-[10px] font-bold tabular-nums",
+                    isToday ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {t.total > 0 ? formatNumber(t.total) : "–"}
+                </p>
+                <div
+                  role="img"
+                  aria-label={`${t.label}: ${formatPKR(t.total)} from ${t.count} sales`}
+                  title={`${t.label} · ${formatPKR(t.total)} · ${t.count} ${t.count === 1 ? "sale" : "sales"}`}
+                  style={{ height: `${pct}%` }}
+                  className={cn(
+                    "w-full max-w-9 rounded-t-md transition-all duration-300 hover:opacity-80",
+                    t.total === 0
+                      ? "bg-muted"
+                      : isToday
+                        ? "bg-gradient-to-t from-[#7A0F15] to-primary shadow-[0_4px_12px_-4px_rgba(169,26,36,0.6)]"
+                        : "bg-primary/45"
+                  )}
+                />
+                <p
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wide",
+                    isToday ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {isToday ? "Today" : t.label}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {best && best.total > 0 ? (
         <p className="mt-3 border-t pt-2.5 text-xs text-muted-foreground">
@@ -225,10 +238,15 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           <p className="relative mt-2 text-3xl font-bold tabular-nums sm:text-4xl">
             {formatPKR(stats?.todaySales ?? 0)}
           </p>
-          <p className="relative mt-1 text-xs opacity-85">
-            {formatNumber(stats?.salesTodayCount ?? 0)}{" "}
-            {(stats?.salesTodayCount ?? 0) === 1 ? "transaction" : "transactions"} today
-          </p>
+          <div className="relative mt-1.5 flex flex-wrap items-center gap-2">
+            <p className="text-xs opacity-85">
+              {formatNumber(stats?.salesTodayCount ?? 0)}{" "}
+              {(stats?.salesTodayCount ?? 0) === 1 ? "transaction" : "transactions"} today
+            </p>
+            {stats && (stats.yesterdayTotal > 0 || stats.todaySales > 0) ? (
+              <YesterdayDelta today={stats.todaySales} yesterday={stats.yesterdayTotal} />
+            ) : null}
+          </div>
         </div>
 
         <StatCard
@@ -477,5 +495,30 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
         closedBy={userName}
       />
     </div>
+  );
+}
+
+/** Small pill comparing today's sales against yesterday. */
+function YesterdayDelta({ today, yesterday }: { today: number; yesterday: number }) {
+  if (yesterday <= 0) {
+    return (
+      <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold">
+        First sale of the week 🎉
+      </span>
+    );
+  }
+  const delta = ((today - yesterday) / yesterday) * 100;
+  const up = delta >= 0;
+  return (
+    <span
+      title={`Yesterday: ${formatPKR(yesterday)}`}
+      className={cn(
+        "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold",
+        up ? "bg-[#2E7D4F]/25 text-white" : "bg-black/20 text-white"
+      )}
+    >
+      {up ? "▲" : "▼"}
+      {Math.abs(delta).toFixed(0)}% vs yesterday
+    </span>
   );
 }

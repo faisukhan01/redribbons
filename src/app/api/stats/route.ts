@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems] =
+    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems, yesterdayAgg] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -75,6 +75,13 @@ export async function GET(req: Request) {
           where: { sale: { createdAt: { gte: since } } },
           select: { name: true, quantity: true, subtotal: true },
         }),
+        // Yesterday's total for the "vs yesterday" delta on the hero card
+        db.sale.aggregate({
+          _sum: { total: true },
+          where: {
+            createdAt: { gte: new Date(dayStart - 86_400_000), lt: since },
+          },
+        }),
       ]);
 
     const products = await db.product.findMany({ select: { price: true, stock: true } });
@@ -116,6 +123,7 @@ export async function GET(req: Request) {
 
     const stats: Stats = {
       todaySales: todayAgg._sum.total ?? 0,
+      yesterdayTotal: yesterdayAgg._sum.total ?? 0,
       salesTodayCount: todayAgg._count,
       cashToday: cashAgg._sum.total ?? 0,
       onlineToday: onlineAgg._sum.total ?? 0,

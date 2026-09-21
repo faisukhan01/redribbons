@@ -1,7 +1,10 @@
 "use client";
 
-import { Crown, LayoutDashboard, LogOut, Package, ReceiptText, ScanBarcode, ShoppingBag } from "lucide-react";
+import { useState } from "react";
+import { Crown, KeyRound, LayoutDashboard, LogOut, Package, ReceiptText, ScanBarcode, ShoppingBag } from "lucide-react";
 import { BrandHeader } from "@/components/pos/brand";
+import { AccountDialog } from "@/components/pos/account-dialog";
+import { BackupMenu } from "@/components/pos/backup-menu";
 import { cn } from "@/lib/utils";
 import type { Role, SessionUser } from "@/lib/types";
 
@@ -35,6 +38,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const items = NAV[user.role];
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -68,14 +72,24 @@ export function AppShell({
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
-              <p className="flex items-center justify-end gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {user.role === "OWNER" ? <Crown className="h-3 w-3 text-primary" /> : null}
-                {user.role === "OWNER" ? "Owner" : "Salesman"}
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAccountOpen(true)}
+              className="group flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1.5 text-right transition-colors hover:border-border hover:bg-muted sm:px-2.5"
+              aria-label="Account settings — change PIN"
+              title="Account — change PIN"
+            >
+              <div className="hidden sm:block">
+                <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
+                <p className="flex items-center justify-end gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {user.role === "OWNER" ? <Crown className="h-3 w-3 text-primary" /> : null}
+                  {user.role === "OWNER" ? "Owner" : "Salesman"}
+                </p>
+              </div>
+              <KeyRound className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
+            </button>
+            {user.role === "OWNER" ? <BackupMenu /> : null}
             <button
               type="button"
               onClick={onLogout}
@@ -88,6 +102,9 @@ export function AppShell({
           </div>
         </div>
       </header>
+
+      {/* Account (change PIN) dialog */}
+      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} user={user} />
 
       {/* Main */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-5 md:pb-10 md:pt-6">

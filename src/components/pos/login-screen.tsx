@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Crown, Delete, ShoppingBag } from "lucide-react";
 import { BrandLockup } from "@/components/pos/brand";
 import { api } from "@/lib/api";
@@ -64,6 +64,23 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
       void submitPin(next);
     }
   }
+
+  // Type the PIN on a physical keyboard too (digits, Backspace, Escape)
+  useEffect(() => {
+    if (!role) return;
+    function onKey(e: KeyboardEvent) {
+      if (/^[0-9]$/.test(e.key)) {
+        pressKey(e.key);
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        pressKey("del");
+      } else if (e.key === "Escape") {
+        pressKey("clear");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <div className="rr-ribbon-bg flex min-h-screen flex-col items-center justify-center px-4 py-10">
@@ -200,6 +217,13 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Demo access — Owner PIN: 1234 · Salesman PIN: 1111
+        <span className="mt-1 block text-[10px] opacity-70">
+          You can also type the PIN on your keyboard
+        </span>
+      </p>
+      <p className="mt-3 flex items-center gap-1.5 rounded-full border bg-card/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 shadow-sm">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        Red Ribbons POS · v1.1
       </p>
     </div>
   );

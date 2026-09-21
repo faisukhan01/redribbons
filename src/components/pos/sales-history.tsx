@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Printer, ReceiptText, ScrollText } from "lucide-react";
+import { Download, Printer, ReceiptText, ScrollText, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaymentBadge } from "@/components/pos/shared";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
@@ -26,6 +27,8 @@ export function SalesHistory() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"today" | "all">("today");
+  const [query, setQuery] = useState("");
+  const [pay, setPay] = useState<"all" | "CASH" | "ONLINE">("all");
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStats, setReportStats] = useState<Stats | null>(null);
@@ -48,13 +51,26 @@ export function SalesHistory() {
   }, []);
 
   const visible = useMemo(() => {
-    if (filter === "all") return sales ?? [];
-    const tzOffset = new Date().getTimezoneOffset();
-    const dayStart =
-      Math.floor((Date.now() - tzOffset * 60_000) / 86_400_000) * 86_400_000 +
-      tzOffset * 60_000;
-    return (sales ?? []).filter((s) => new Date(s.createdAt).getTime() >= dayStart);
-  }, [sales, filter]);
+    let list = sales ?? [];
+    if (filter === "today") {
+      const tzOffset = new Date().getTimezoneOffset();
+      const dayStart =
+        Math.floor((Date.now() - tzOffset * 60_000) / 86_400_000) * 86_400_000 +
+        tzOffset * 60_000;
+      list = list.filter((s) => new Date(s.createdAt).getTime() >= dayStart);
+    }
+    if (pay !== "all") list = list.filter((s) => s.paymentMethod === pay);
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (s) =>
+          s.saleId.toLowerCase().includes(q) ||
+          s.salesman.toLowerCase().includes(q) ||
+          s.items.some((i) => i.name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [sales, filter, pay, query]);
 
   const todayTotal = visible.reduce((s, x) => s + x.total, 0);
 
@@ -91,6 +107,33 @@ export function SalesHistory() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search ID, item or salesman…"
+              className="h-9 w-52 pl-9 sm:w-64"
+              aria-label="Search sales"
+            />
+          </div>
+          <div className="flex rounded-lg border bg-card p-1">
+            {(["all", "CASH", "ONLINE"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPay(m)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm font-semibold transition-colors",
+                  pay === m
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m === "all" ? "All" : m === "CASH" ? "Cash" : "Online"}
+              </button>
+            ))}
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -154,9 +197,11 @@ export function SalesHistory() {
         <div className="rounded-xl border bg-card p-12 text-center">
           <ReceiptText className="mx-auto h-10 w-10 text-muted-foreground/40" />
           <p className="mt-3 text-sm text-muted-foreground">
-            {filter === "today"
-              ? "No sales have been recorded today yet."
-              : "No sales recorded yet."}
+            {sales && (sales.length > 0) && (query.trim() !== "" || pay !== "all")
+              ? "No sales match your search or filter."
+              : filter === "today"
+                ? "No sales have been recorded today yet."
+                : "No sales recorded yet."}
           </p>
         </div>
       ) : (
@@ -169,11 +214,15 @@ export function SalesHistory() {
             {visible.map((sale) => (
               <div key={sale.id} className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/30 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="font-mono text-base font-bold text-primary">
                       {sale.saleId}
                     </p>
                     <PaymentBadge method={sale.paymentMethod} />
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                      {sale.items.reduce((n, i) => n + i.quantity, 0)}{" "}
+                      {sale.items.reduce((n, i) => n + i.quantity, 0) === 1 ? "item" : "items"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button

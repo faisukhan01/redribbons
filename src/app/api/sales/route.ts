@@ -2,15 +2,23 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 
-// GET /api/sales?limit=100
+// GET /api/sales?limit=100&salesman=Ahmed&since=<iso|ms>
 export async function GET(req: Request) {
   try {
     await ensureSeed();
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 100) || 100, 500);
+    const salesman = url.searchParams.get("salesman")?.trim();
+    const sinceRaw = url.searchParams.get("since");
+    const since = sinceRaw ? new Date(sinceRaw) : null;
+
     const sales = await db.sale.findMany({
       orderBy: { id: "desc" },
       take: limit,
+      where: {
+        ...(salesman ? { salesman } : {}),
+        ...(since && !Number.isNaN(since.getTime()) ? { createdAt: { gte: since } } : {}),
+      },
       include: { items: true },
     });
     return NextResponse.json({ sales });
