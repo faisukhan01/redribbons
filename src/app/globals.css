@@ -272,6 +272,16 @@ input[type="number"] {
   display: none;
 }
 
+/* Urdu counter mode: letter-spacing splits Arabic-script letters apart
+   (they must stay joined), so neutralize tracking classes on Urdu text;
+   the taller script also needs a touch more line height. */
+.rr-urdu :is(h1, h2, h3, p, label, button, span) {
+  letter-spacing: normal;
+}
+.rr-urdu {
+  line-height: 1.65;
+}
+
 @media print {
   @page {
     margin: 10mm;
@@ -292,6 +302,11 @@ input[type="number"] {
     max-width: 80mm;
     margin: 0 auto;
     box-shadow: none !important;
+  }
+  /* Compact 58 mm thermal paper (owner setting: Receipt Details → Paper width) */
+  .rr-print-root .rr-receipt--58 {
+    width: 58mm;
+    max-width: 58mm;
   }
   .rr-print-root .rr-receipt,
   .rr-print-root .rr-receipt * {

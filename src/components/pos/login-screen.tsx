@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Crown, Delete, ShoppingBag } from "lucide-react";
 import { BrandLockup } from "@/components/pos/brand";
 import { api } from "@/lib/api";
@@ -26,6 +26,15 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
+  // Mirror of `pin` — rapid physical-keyboard events all fire within one render
+  // batch, so reading `pin` from the closure would submit a wrong PIN. The ref
+  // always holds the latest value.
+  const pinRef = useRef("");
+
+  function writePin(next: string) {
+    pinRef.current = next;
+    setPin(next);
+  }
 
   async function submitPin(finalPin: string) {
     if (!role) return;
@@ -39,7 +48,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
       onLogin(res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in.");
-      setPin("");
+      writePin("");
       setShake(true);
       setTimeout(() => setShake(false), 450);
     } finally {
@@ -50,16 +59,16 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
   function pressKey(key: string) {
     setError(null);
     if (key === "del") {
-      setPin((p) => p.slice(0, -1));
+      writePin(pinRef.current.slice(0, -1));
       return;
     }
     if (key === "clear") {
-      setPin("");
+      writePin("");
       return;
     }
-    if (pin.length >= 4) return;
-    const next = pin + key;
-    setPin(next);
+    if (pinRef.current.length >= 4) return;
+    const next = pinRef.current + key;
+    writePin(next);
     if (next.length === 4) {
       void submitPin(next);
     }
@@ -149,7 +158,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
                 type="button"
                 onClick={() => {
                   setRole(null);
-                  setPin("");
+                  writePin("");
                   setError(null);
                 }}
                 className="text-xs font-semibold text-primary hover:underline"

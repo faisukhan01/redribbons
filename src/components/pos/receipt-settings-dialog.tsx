@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Phone, ReceiptText, Store, MapPin } from "lucide-react";
+import { Loader2, Phone, ReceiptText, Store, MapPin, Printer, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useShopSettings } from "@/lib/settings";
+import { cn } from "@/lib/utils";
 
 /** Owner dialog: shop info that prints on every receipt + the Z-report. */
 export function ReceiptSettingsDialog({
@@ -22,10 +23,10 @@ export function ReceiptSettingsDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const settings = useShopSettings((s) => s.settings);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
+  const [paperWidth, setPaperWidth] = useState("80");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function ReceiptSettingsDialog({
       setPhone(useShopSettings.getState().settings?.shopPhone ?? "");
       setAddress(useShopSettings.getState().settings?.shopAddress ?? "");
       setNote(useShopSettings.getState().settings?.receiptNote ?? "");
+      setPaperWidth(useShopSettings.getState().settings?.paperWidth === "58" ? "58" : "80");
     }
   }, [open]);
 
@@ -44,6 +46,7 @@ export function ReceiptSettingsDialog({
         shopPhone: phone,
         shopAddress: address,
         receiptNote: note,
+        paperWidth,
       });
       toast.success("Receipt details saved — they will print on every receipt.");
       onOpenChange(false);
@@ -107,6 +110,53 @@ export function ReceiptSettingsDialog({
               autoComplete="off"
               className="mt-1.5 h-11"
             />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <Printer className="h-3.5 w-3.5" /> Receipt paper width
+            </label>
+            <div
+              role="radiogroup"
+              aria-label="Receipt paper width"
+              className="mt-1.5 grid grid-cols-2 gap-2"
+            >
+              {[
+                { v: "80", title: "Standard 80 mm thermal rolls", hint: "Fits ~32 characters per line" },
+                { v: "58", title: "Compact 58 mm thermal rolls", hint: "Fits ~24 characters per line" },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  role="radio"
+                  aria-checked={paperWidth === opt.v}
+                  onClick={() => setPaperWidth(opt.v)}
+                  title={opt.title}
+                  className={cn(
+                    "rounded-xl border-2 p-3 text-left transition-all",
+                    paperWidth === opt.v
+                      ? "border-primary bg-accent/60 shadow-[0_4px_14px_-8px_rgba(169,26,36,0.5)]"
+                      : "border-border bg-card hover:border-primary/40"
+                  )}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="font-display text-base font-bold">{opt.v} mm</span>
+                    {paperWidth === opt.v ? (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    {opt.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Match this to your receipt printer&apos;s paper roll — it changes the preview and the
+              printed width.
+            </p>
           </div>
 
           {/* Live receipt preview of the lines */}

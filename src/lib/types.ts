@@ -99,6 +99,8 @@ export interface ShopSettings {
   shopPhone: string;
   shopAddress: string;
   receiptNote: string;
+  /** Thermal paper roll width in mm — "80" (default) or "58" for compact printers. */
+  paperWidth: string;
 }
 
 export interface Stats {

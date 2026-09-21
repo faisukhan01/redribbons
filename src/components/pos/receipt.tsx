@@ -18,11 +18,14 @@ export function Receipt({ sale, className }: { sale: Sale; className?: string })
   const cash = sale.paymentMethod === "CASH";
   const units = sale.items.reduce((s, i) => s + i.quantity, 0);
   const hasDiscount = (sale.discount ?? 0) > 0;
+  // Paper roll width — 58 mm compact printers get a narrower receipt
+  const narrow = settings?.paperWidth === "58";
 
   return (
     <div
       className={cn(
-        "rr-receipt mx-auto w-full max-w-[300px] bg-white px-5 py-6 text-[11px] leading-relaxed text-foreground shadow-sm ring-1 ring-black/5",
+        "rr-receipt mx-auto w-full bg-white px-5 py-6 text-[11px] leading-relaxed text-foreground shadow-sm ring-1 ring-black/5",
+        narrow ? "rr-receipt--58 max-w-[220px]" : "max-w-[300px]",
         className
       )}
     >

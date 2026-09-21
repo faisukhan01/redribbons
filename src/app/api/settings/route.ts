@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 
-const ALLOWED = ["shopPhone", "shopAddress", "receiptNote"] as const;
+const ALLOWED = ["shopPhone", "shopAddress", "receiptNote", "paperWidth"] as const;
 type SettingKey = (typeof ALLOWED)[number];
 
 async function readSettings(): Promise<Record<SettingKey, string>> {
@@ -11,6 +11,7 @@ async function readSettings(): Promise<Record<SettingKey, string>> {
     shopPhone: "",
     shopAddress: "",
     receiptNote: "",
+    paperWidth: "80",
   };
   for (const row of rows) {
     if ((ALLOWED as readonly string[]).includes(row.key)) {
@@ -48,7 +49,8 @@ export async function PUT(req: Request) {
     const updates: Array<{ key: SettingKey; value: string }> = [];
     for (const key of ALLOWED) {
       if (incoming[key] === undefined) continue;
-      const value = String(incoming[key] ?? "").trim().slice(0, 200); // receipt-safe length
+      let value = String(incoming[key] ?? "").trim().slice(0, 200); // receipt-safe length
+      if (key === "paperWidth") value = value === "58" ? "58" : "80"; // only two sizes
       updates.push({ key, value });
     }
 

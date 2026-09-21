@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatPKR, formatTime } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { HeldSale } from "@/lib/store";
 import type { CartItem } from "@/lib/types";
@@ -78,6 +79,7 @@ export function CartPanel({
   onComplete,
 }: CartPanelProps) {
   const [discountOpen, setDiscountOpen] = useState(false);
+  const { t } = useT();
   const empty = cart.length === 0;
   const cashOk = received >= total;
   const insufficient = received > 0 && !cashOk;
@@ -89,10 +91,10 @@ export function CartPanel({
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-display text-lg font-bold">Current Sale</h2>
+          <h2 className="font-display text-lg font-bold">{t("currentSale")}</h2>
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-bold text-secondary-foreground">
             {cart.reduce((s, i) => s + i.quantity, 0)}{" "}
-            {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"}
+            {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? t("item") : t("items")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -103,7 +105,7 @@ export function CartPanel({
             title="Park this order and start the next customer"
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-40"
           >
-            <Pause className="h-3.5 w-3.5" /> Hold
+            <Pause className="h-3.5 w-3.5" /> {t("hold")}
           </button>
           <button
             type="button"
@@ -111,7 +113,7 @@ export function CartPanel({
             disabled={empty}
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
           >
-            <Trash2 className="h-3.5 w-3.5" /> Clear
+            <Trash2 className="h-3.5 w-3.5" /> {t("clear")}
           </button>
         </div>
       </div>
@@ -120,7 +122,7 @@ export function CartPanel({
       {held.length > 0 ? (
         <div className="mt-3 rounded-lg border border-warning/30 bg-[#FCF7EF] p-2">
           <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-warning">
-            Parked orders ({formatNumber(held.length)})
+            {t("parkedOrders")} ({formatNumber(held.length)})
           </p>
           <div className="rr-scroll mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
             {held.map((h) => (
@@ -167,9 +169,9 @@ export function CartPanel({
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
               <PackageOpen className="h-5 w-5 text-primary/70" />
             </span>
-            <p className="mt-2.5 text-sm font-semibold text-foreground">Cart is empty</p>
+            <p className="mt-2.5 text-sm font-semibold text-foreground">{t("cartEmpty")}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Enter a Product ID or tap a product tile to start
+              {t("cartEmptyHint")}
             </p>
           </div>
         ) : (
@@ -180,7 +182,7 @@ export function CartPanel({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{item.name}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      <span className="font-mono">{item.code}</span> · {formatPKR(item.price)} each
+                      <span className="font-mono">{item.code}</span> · {formatPKR(item.price)} {t("each")}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -222,7 +224,7 @@ export function CartPanel({
                   </div>
                   {item.quantity >= item.stock ? (
                     <span className="text-[11px] font-semibold text-warning">
-                      Max stock ({item.stock})
+                      {t("maxStock")} ({item.stock})
                     </span>
                   ) : null}
                 </div>
@@ -237,7 +239,7 @@ export function CartPanel({
         {hasDiscount ? (
           <div className="flex items-center justify-between pb-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Subtotal
+              {t("subtotal")}
             </span>
             <span className="text-sm font-semibold tabular-nums text-muted-foreground">
               {formatPKR(subtotal)}
@@ -247,7 +249,7 @@ export function CartPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Total
+              {t("total")}
             </span>
             {!empty ? (
               <button
@@ -262,7 +264,7 @@ export function CartPanel({
                 title="Apply a discount to this sale"
               >
                 <BadgePercent className="h-3 w-3" />
-                {hasDiscount ? `− ${formatPKR(discount)}` : "Discount"}
+                {hasDiscount ? `− ${formatPKR(discount)}` : t("discount")}
               </button>
             ) : null}
           </div>
@@ -313,14 +315,14 @@ export function CartPanel({
                 );
               })}
               <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
-                Max {formatPKR(subtotal)}
+                {t("max")} {formatPKR(subtotal)}
               </span>
             </div>
           </div>
         ) : null}
         {hasDiscount && !discountOpen ? (
           <p className="mt-1 text-right text-[11px] font-semibold text-[#2E7D4F]">
-            Discount applied — {formatPKR(subtotal - total)} off
+            {t("discountApplied")} {formatPKR(subtotal - total)} {t("off")}
           </p>
         ) : null}
       </div>
@@ -339,7 +341,7 @@ export function CartPanel({
                 : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
             )}
           >
-            <Banknote className="h-5 w-5" /> Cash
+            <Banknote className="h-5 w-5" /> {t("cash")}
           </button>
           <button
             type="button"
@@ -352,7 +354,7 @@ export function CartPanel({
                 : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
             )}
           >
-            <Smartphone className="h-5 w-5" /> Online
+            <Smartphone className="h-5 w-5" /> {t("online")}
           </button>
         </div>
 
@@ -362,7 +364,7 @@ export function CartPanel({
               htmlFor="cash-input"
               className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
             >
-              Customer Gives
+              {t("customerGives")}
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-muted-foreground">
@@ -397,17 +399,17 @@ export function CartPanel({
                 onClick={() => onCashInput(String(total))}
                 className="rounded-full border border-primary/40 bg-accent px-3 py-1 text-xs font-bold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-40"
               >
-                Exact
+                {t("exact")}
               </button>
             </div>
 
             <div className="flex items-center justify-between rounded-lg px-1 pt-1">
               {cashInput === "" ? (
-                <p className="text-xs text-muted-foreground">Enter amount to calculate change</p>
+                <p className="text-xs text-muted-foreground">{t("enterAmountToCalculateChange")}</p>
               ) : cashOk ? (
                 <>
                   <span className="text-sm font-bold uppercase tracking-wide text-[#2E7D4F]">
-                    Change
+                    {t("change")}
                   </span>
                   <span className="text-2xl font-bold tabular-nums text-[#2E7D4F]">
                     {formatPKR(change)}
@@ -416,10 +418,10 @@ export function CartPanel({
               ) : (
                 <>
                   <span className="text-sm font-bold uppercase tracking-wide text-destructive">
-                    Insufficient payment
+                    {t("insufficientPayment")}
                   </span>
                   <span className="text-lg font-bold tabular-nums text-destructive">
-                    Remaining {formatPKR(total - received)}
+                    {t("remaining")} {formatPKR(total - received)}
                   </span>
                 </>
               )}
@@ -429,10 +431,8 @@ export function CartPanel({
           <div className="flex items-start gap-2.5 rounded-xl bg-muted/50 p-3">
             <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs leading-relaxed text-muted-foreground">
-              The customer pays by <span className="font-bold text-foreground">Online</span>{" "}
-              transfer. The full amount of{" "}
-              <span className="font-bold text-foreground">{formatPKR(total)}</span> will be
-              recorded — no change needed.
+              {t("onlineNote")}{" "}
+              <span className="font-bold text-foreground">{formatPKR(total)}</span>
             </p>
           </div>
         )}
@@ -446,12 +446,11 @@ export function CartPanel({
         className="mt-3 h-14 w-full gap-2 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)] transition-shadow hover:shadow-[0_12px_28px_-10px_rgba(169,26,36,0.7)]"
       >
         {completing ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-        {completing ? "Completing…" : `Complete Sale · ${formatPKR(total)}`}
+        {completing ? t("completing") : `${t("completeSale")} · ${formatPKR(total)}`}
       </Button>
       {insufficient ? (
         <p className="mt-2 text-center text-xs font-semibold text-destructive">
-          Payment amount is insufficient — collect the remaining {formatPKR(total - received)} to
-          complete the sale.
+          {t("insufficientNote")}
         </p>
       ) : null}
     </div>

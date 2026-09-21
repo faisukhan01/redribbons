@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { StatCard, RecentSaleRow } from "@/components/pos/shared";
+import { StatCard, RecentSaleRow, CountUp } from "@/components/pos/shared";
 import { ZReportDialog } from "@/components/pos/z-report";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/store";
@@ -239,7 +239,7 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
             <p className="text-xs font-semibold uppercase tracking-widest">Today&apos;s Sales</p>
           </div>
           <p className="relative mt-2 text-3xl font-bold tabular-nums sm:text-4xl">
-            {formatPKR(stats?.todaySales ?? 0)}
+            <CountUp value={stats?.todaySales ?? 0} format={formatPKR} />
           </p>
           <div className="relative mt-1.5 flex flex-wrap items-center gap-2">
             <p className="text-xs opacity-85">

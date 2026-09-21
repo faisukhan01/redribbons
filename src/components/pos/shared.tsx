@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Banknote, Package, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatPKR } from "@/lib/format";
+import { formatNumber, formatPKR } from "@/lib/format";
 import type { Sale } from "@/lib/types";
 
 export function PaymentBadge({
@@ -85,6 +86,48 @@ export function StatCard({
   );
 }
 
+/** Animated number count-up (eased, respects prefers-reduced-motion). */
+export function CountUp({
+  value,
+  format,
+  className,
+}: {
+  value: number;
+  format?: (n: number) => string;
+  className?: string;
+}) {
+  const [display, setDisplay] = useState(0);
+  const prevRef = useRef(0);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value;
+    if (from === to) return; // display already converged to the previous target
+    prevRef.current = to;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = reduce ? 0 : 750;
+    const start = performance.now();
+    let raf = 0;
+    function tick(now: number) {
+      const p = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      setDisplay(from + (to - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  const fmt =
+    format ??
+    ((n: number) => formatNumber(Math.round(n)));
+  return (
+    <span className={className} aria-label={fmt(value)}>
+      {fmt(display)}
+    </span>
+  );
+}
+
 /** Product tile used in the POS quick-grid. */
 export function ProductTile({
   name,
@@ -98,6 +141,7 @@ export function ProductTile({
   onClick: () => void;
 }) {
   const disabled = stock <= 0;
+  const low = !disabled && stock <= 5;
   return (
     <button
       type="button"
@@ -106,8 +150,10 @@ export function ProductTile({
       className={cn(
         "flex h-full flex-col justify-between gap-1.5 rounded-lg border bg-card p-2.5 text-left transition-all",
         disabled
-          ? "opacity-50 cursor-not-allowed"
-          : "hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/60 hover:shadow-[0_6px_16px_-8px_rgba(122,15,21,0.35)] active:translate-y-0 active:bg-accent"
+          ? "cursor-not-allowed border-destructive/20 bg-destructive/5 opacity-60"
+          : low
+            ? "border-warning/40 hover:-translate-y-0.5 hover:border-warning hover:bg-accent/60 hover:shadow-[0_6px_16px_-8px_rgba(122,15,21,0.35)] active:translate-y-0 active:bg-accent"
+            : "hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/60 hover:shadow-[0_6px_16px_-8px_rgba(122,15,21,0.35)] active:translate-y-0 active:bg-accent"
       )}
     >
       <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">

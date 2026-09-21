@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, SessionUser } from "@/lib/types";
+import type { CartItem, Sale, SessionUser } from "@/lib/types";
 
 interface SessionState {
   user: SessionUser | null;
@@ -62,5 +62,26 @@ export const useHeldSales = create<HeldState>()(
       discard: (id) => set((s) => ({ held: s.held.filter((h) => h.id !== id) })),
     }),
     { name: "red-ribbons-pos-held" }
+  )
+);
+
+/* ------------------------------------------------------------------ */
+/* Last completed sale — lets the counter reprint the most recent      */
+/* receipt without digging through the sales history. Persisted so it  */
+/* survives a reload.                                                  */
+/* ------------------------------------------------------------------ */
+
+interface LastSaleState {
+  sale: Sale | null;
+  setSale: (s: Sale) => void;
+}
+
+export const useLastSale = create<LastSaleState>()(
+  persist(
+    (set) => ({
+      sale: null,
+      setSale: (sale) => set({ sale }),
+    }),
+    { name: "red-ribbons-pos-last-sale" }
   )
 );

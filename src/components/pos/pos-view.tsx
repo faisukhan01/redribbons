@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CornerDownLeft, Loader2, Plus, ReceiptText, Search, ShoppingBag } from "lucide-react";
+import { CornerDownLeft, Languages, Loader2, Plus, Printer, ReceiptText, Search, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,12 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { CartPanel, type PayMethod } from "@/components/pos/cart-panel";
 import { SaleSuccess } from "@/components/pos/sale-success";
 import { ProductTile } from "@/components/pos/shared";
+import { ReprintDialog } from "@/components/pos/reprint-dialog";
 import { api } from "@/lib/api";
 import { formatPKR } from "@/lib/format";
-import { useHeldSales } from "@/lib/store";
+import { useHeldSales, useLastSale } from "@/lib/store";
 import { useShopSettings } from "@/lib/settings";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { CartItem, Product, Sale } from "@/lib/types";
 
@@ -33,7 +35,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const [completing, setCompleting] = useState(false);
   const [success, setSuccess] = useState<Sale | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [reprintOpen, setReprintOpen] = useState(false);
   const [myDay, setMyDay] = useState<{ count: number; revenue: number; items: number } | null>(null);
+  const { t, isUr, toggle: toggleLang } = useT();
+  const lastSale = useLastSale((s) => s.sale);
 
   const idInputRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -286,6 +291,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
         }),
       });
       setSuccess(res.sale);
+      useLastSale.getState().setSale(res.sale); // enables "reprint last receipt"
       clearCart();
       setIdInput("");
       setSheetOpen(false);
@@ -304,32 +310,55 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", isUr && "rr-urdu")}>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold sm:text-3xl">POS — New Sale</h1>
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">{t("posTitle")}</h1>
           <p className="text-sm text-muted-foreground">
-            Enter Product ID → Add → Payment → Complete Sale
+            {t("posFlow")}
             <span className="ml-2 hidden rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-primary md:inline">
-              Tip: “101*3” adds 3 at once
+              {t("tipQuickAdd")}
             </span>
           </p>
         </div>
         <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          {/* Counter tools: language + reprint last receipt */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleLang}
+              title="Counter language / کاؤنٹر کی زبان"
+              className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-bold shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              <Languages className="h-3.5 w-3.5 text-primary" />
+              {isUr ? "English" : "اردو"}
+            </button>
+            {lastSale ? (
+              <button
+                type="button"
+                onClick={() => setReprintOpen(true)}
+                title="Reprint the most recent receipt"
+                className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-bold shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <Printer className="h-3.5 w-3.5 text-primary" />
+                {t("reprintLast")}
+              </button>
+            ) : null}
+          </div>
           {/* Shortcut hints (desktop) */}
           <div className="hidden items-center gap-1.5 text-[11px] font-semibold text-muted-foreground lg:flex" aria-hidden>
             <Kbd>F2</Kbd> ID
-            <Kbd>F3</Kbd> Payment
-            <Kbd>F4</Kbd> Hold
-            <Kbd>/</Kbd> Search
+            <Kbd>F3</Kbd> {t("cash")}/{t("online")}
+            <Kbd>F4</Kbd> {t("hold")}
+            <Kbd>/</Kbd> {t("searchPlaceholder").split(" ")[0]}
           </div>
           {/* Salesman's own day so far */}
           {myDay ? (
             <div className="flex items-center gap-1.5">
               <span className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm">
                 <ShoppingBag className="h-3.5 w-3.5 text-primary" />
-                Today: <span className="tabular-nums font-bold">{myDay.count}</span>
-                {myDay.count === 1 ? "sale" : "sales"}
+                {t("today")}: <span className="tabular-nums font-bold">{myDay.count}</span>
+                {myDay.count === 1 ? t("sale") : t("sales")}
               </span>
               <span className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm">
                 <ReceiptText className="h-3.5 w-3.5 text-primary" />
@@ -337,7 +366,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               </span>
               <span className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold shadow-sm sm:flex">
                 <span className="tabular-nums font-bold">{myDay.items}</span>
-                {myDay.items === 1 ? "item" : "items"} sold
+                {myDay.items === 1 ? t("item") : t("items")} {t("itemsSold")}
               </span>
             </div>
           ) : null}
@@ -352,7 +381,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               htmlFor="pos-id"
               className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
             >
-              Product ID
+              {t("productId")}
             </label>
             <div className="mt-2 flex gap-2">
               <div className="relative min-w-0 flex-1">
@@ -389,7 +418,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                 onClick={handleIdAdd}
                 className="h-14 gap-2 rounded-xl px-6 text-base font-bold uppercase tracking-wide sm:px-8"
               >
-                <Plus className="h-5 w-5" /> Add
+                <Plus className="h-5 w-5" /> {t("add")}
               </Button>
             </div>
 
@@ -410,19 +439,22 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                       ) : (
                         <span className="font-bold text-primary">{formatPKR(preview.price)}</span>
                       )}
-                      {"Available: "}
+                      {" · "}
+                      {t("available")}: 
                       <span className="font-bold text-foreground">{preview.stock}</span>
                       {" · "}
                       {preview.category}
                     </p>
                   </div>
                   <span className="hidden shrink-0 text-xs font-semibold text-muted-foreground sm:block">
-                    Press Enter or ADD
+                    {t("pressEnterOrAdd")}
                   </span>
                 </div>
               ) : (
                 <p className="mt-3 rounded-xl bg-muted/60 p-3 text-sm font-semibold text-muted-foreground">
-                  No product found with ID “{idInput.trim()}” — check and try again.
+                  {isUr
+                    ? `“${idInput.trim()}” — ${t("noProductFound")}`
+                    : `No product found with ID “${idInput.trim()}” — check and try again.`}
                 </p>
               )
             ) : null}
@@ -436,7 +468,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                 ref={searchRef}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Or search by product name…  ( / )"
+                placeholder={isUr ? "یا پروڈکٹ کے نام سے تلاش کریں… ( / )" : "Or search by product name…  ( / )"}
                 className="pl-9"
                 aria-label="Search products"
               />
@@ -455,18 +487,18 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                       : "bg-secondary text-secondary-foreground hover:bg-accent"
                   )}
                 >
-                  {c === "all" ? "All" : c}
+                  {c === "all" ? t("all") : c}
                 </button>
               ))}
             </div>
 
             {products === null ? (
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading products…
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("loadingProducts")}
               </div>
             ) : browse.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No products match your search.
+                {t("noProductsMatch")}
               </p>
             ) : (
               <div className="rr-scroll mt-3 grid max-h-[38vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:max-h-[42vh] xl:grid-cols-4">
@@ -521,7 +553,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
             <div className="min-w-0">
               <p className="text-xs font-semibold text-muted-foreground">
                 {cart.reduce((s, i) => s + i.quantity, 0)}{" "}
-                {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"} in cart
+                {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? t("item") : t("items")} {t("inCart")}
               </p>
               <p className="truncate font-display text-xl font-bold tabular-nums text-primary">
                 {formatPKR(payable)}
@@ -531,7 +563,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               onClick={() => setSheetOpen(true)}
               className="h-12 gap-2 rounded-xl px-6 font-bold uppercase tracking-wide"
             >
-              <ShoppingBag className="h-4 w-4" /> Checkout
+              <ShoppingBag className="h-4 w-4" /> {t("checkout")}
             </Button>
           </div>
         </div>
@@ -541,7 +573,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="bottom" className="rr-scroll max-h-[92dvh] overflow-y-auto rounded-t-2xl p-5">
           <SheetHeader className="p-0 pb-2">
-            <SheetTitle className="font-display text-xl">Checkout</SheetTitle>
+            <SheetTitle className="font-display text-xl">{t("checkout")}</SheetTitle>
             <SheetDescription className="sr-only">
               Review the cart, choose a payment method and complete the sale.
             </SheetDescription>
@@ -570,6 +602,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
           />
         </SheetContent>
       </Sheet>
+
+      {/* Reprint the most recent receipt */}
+      <ReprintDialog open={reprintOpen} onOpenChange={setReprintOpen} sale={lastSale} />
     </div>
   );
 }

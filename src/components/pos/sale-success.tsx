@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Printer, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
-import { formatPKR } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Sale } from "@/lib/types";
 
 /* Brand ribbon pieces — deterministic so the DOM stays stable between renders. */
@@ -21,6 +21,7 @@ const RIBBONS = [
 
 export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => void }) {
   const [printing, setPrinting] = useState(false);
+  const { t } = useT();
 
   // Enter starts the next sale from the success screen (counter speed)
   useEffect(() => {
@@ -62,9 +63,9 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
       <div className="rr-pop relative flex h-20 w-20 items-center justify-center rounded-full bg-[#EAF4EE]">
         <CheckCircle2 className="h-11 w-11 text-[#2E7D4F]" />
       </div>
-      <h1 className="mt-5 font-display text-3xl font-bold">Sale Completed</h1>
+      <h1 className="mt-5 font-display text-3xl font-bold">{t("saleComplete")}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Thank you — the transaction has been recorded.
+        {t("thanksRecorded")}
       </p>
 
       {/* Receipt preview with a playful tear-here line */}
@@ -85,14 +86,14 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
           className="h-14 gap-2 rounded-xl text-sm font-bold uppercase tracking-wide"
         >
           <Printer className="h-5 w-5" />
-          {printing ? "Preparing…" : "Print Receipt"}
+          {printing ? t("preparing") : t("printReceipt")}
         </Button>
         <Button
           size="lg"
           onClick={onNewSale}
           className="h-14 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)]"
         >
-          New Sale
+          {t("newSale")}
         </Button>
         <p className="col-span-full text-[11px] font-semibold text-muted-foreground">
           Tip: press <span className="rounded border bg-muted px-1 py-0.5 font-sans">Enter</span> to

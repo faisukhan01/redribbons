@@ -233,13 +233,14 @@ export async function POST(req: Request) {
 
     // Restore receipt settings (outside the data transaction — non-critical)
     if (body.settings && typeof body.settings === "object") {
-      for (const key of ["shopPhone", "shopAddress", "receiptNote"]) {
+      for (const key of ["shopPhone", "shopAddress", "receiptNote", "paperWidth"]) {
         const value = body.settings[key];
         if (typeof value === "string" && value.trim() !== "") {
+          const clean = key === "paperWidth" ? (value.trim() === "58" ? "58" : "80") : value.trim().slice(0, 200);
           await db.setting.upsert({
             where: { key },
-            update: { value: value.trim().slice(0, 200) },
-            create: { key, value: value.trim().slice(0, 200) },
+            update: { value: clean },
+            create: { key, value: clean },
           });
         }
       }
