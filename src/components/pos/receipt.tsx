@@ -4,6 +4,7 @@ import Image from "next/image";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { cn } from "@/lib/utils";
+import { useShopSettings } from "@/lib/settings";
 import { formatDateTime, formatPKR } from "@/lib/format";
 import type { Sale } from "@/lib/types";
 
@@ -13,8 +14,10 @@ import type { Sale } from "@/lib/types";
  * and by the print pipeline (printReceipt()).
  */
 export function Receipt({ sale, className }: { sale: Sale; className?: string }) {
+  const settings = useShopSettings((s) => s.settings);
   const cash = sale.paymentMethod === "CASH";
   const units = sale.items.reduce((s, i) => s + i.quantity, 0);
+  const hasDiscount = (sale.discount ?? 0) > 0;
 
   return (
     <div
@@ -32,6 +35,16 @@ export function Receipt({ sale, className }: { sale: Sale; className?: string })
         <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
           Bakery · Point of Sale
         </p>
+        {settings?.shopAddress ? (
+          <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+            {settings.shopAddress}
+          </p>
+        ) : null}
+        {settings?.shopPhone ? (
+          <p className="text-[10px] font-semibold text-muted-foreground">
+            ☎ {settings.shopPhone}
+          </p>
+        ) : null}
       </div>
 
       <ReceiptDivider />
@@ -69,7 +82,10 @@ export function Receipt({ sale, className }: { sale: Sale; className?: string })
 
       {/* Totals */}
       <div className="space-y-0.5">
-        <MetaRow label={`Items (${units})`} value="" />
+        <MetaRow label={`Items (${units})`} value={formatPKR(sale.items.reduce((s, i) => s + i.subtotal, 0))} />
+        {hasDiscount ? (
+          <MetaRow label="Discount" value={`− ${formatPKR(sale.discount)}`} />
+        ) : null}
         <div className="flex items-baseline justify-between gap-2 text-sm font-bold">
           <span className="uppercase tracking-wider">Total</span>
           <span className="tabular-nums">{formatPKR(sale.total)}</span>
@@ -91,8 +107,15 @@ export function Receipt({ sale, className }: { sale: Sale; className?: string })
         <p className="text-[11px] font-semibold text-foreground">
           Thank you for shopping with us!
         </p>
+        <p className="text-[11px] font-semibold text-foreground" style={{ direction: "rtl" }}>
+          شکریہ! دوبارہ تشریف لائیں
+        </p>
         <p className="text-[9px] uppercase tracking-[0.25em]">Red Ribbons Bakery</p>
-        <p className="text-[9px]">Fresh from the oven, every day</p>
+        {settings?.receiptNote ? (
+          <p className="text-[9px]">{settings.receiptNote}</p>
+        ) : (
+          <p className="text-[9px]">Fresh from the oven, every day</p>
+        )}
       </div>
     </div>
   );

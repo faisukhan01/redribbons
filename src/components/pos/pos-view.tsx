@@ -12,6 +12,7 @@ import { ProductTile } from "@/components/pos/shared";
 import { api } from "@/lib/api";
 import { formatPKR } from "@/lib/format";
 import { useHeldSales } from "@/lib/store";
+import { useShopSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { CartItem, Product, Sale } from "@/lib/types";
 
@@ -28,6 +29,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>("CASH");
   const [cashInput, setCashInput] = useState("");
+  const [discountInput, setDiscountInput] = useState("");
   const [completing, setCompleting] = useState(false);
   const [success, setSuccess] = useState<Sale | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -85,6 +87,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
 
   useEffect(() => {
     void loadMyDay();
+    void useShopSettings.getState().load(); // for receipt shop lines
   }, [loadMyDay]);
 
   // Counter keyboard shortcuts: F2 → Product ID, F3 → payment, F4 → hold, / → search
@@ -146,8 +149,11 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   }, [products, search, category]);
 
   const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const received = paymentMethod === "CASH" ? parseFloat(cashInput || "0") || 0 : total;
-  const change = Math.max(0, received - total);
+  // Discount is clamped to the subtotal; payable total = subtotal − discount
+  const discount = Math.max(0, Math.min(parseFloat(discountInput || "0") || 0, total));
+  const payable = Math.max(0, Math.round((total - discount) * 100) / 100);
+  const received = paymentMethod === "CASH" ? parseFloat(cashInput || "0") || 0 : payable;
+  const change = Math.max(0, received - payable);
 
   function addToCart(p: Product, qty = 1) {
     if (p.stock <= 0) {
@@ -211,12 +217,13 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   function clearCart() {
     setCart([]);
     setCashInput("");
+    setDiscountInput("");
   }
 
   /** Park the current cart (with its payment state) and clear the counter. */
   function handleHold() {
     if (cart.length === 0) return;
-    holdSale({ items: cart, paymentMethod, cashInput, total });
+    holdSale({ items: cart, paymentMethod, cashInput, discount: discountInput, total: payable });
     clearCart();
     toast.success("Order parked — you can start the next customer now.", {
       description: "Resume it any time from the parked list on the cart.",
@@ -245,12 +252,13 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     }
     const dropped = h.items.reduce((s, i) => s + i.quantity, 0) - clamped.reduce((s, i) => s + i.quantity, 0);
     if (cart.length > 0) {
-      holdSale({ items: cart, paymentMethod, cashInput, total });
+      holdSale({ items: cart, paymentMethod, cashInput, discount: discountInput, total: payable });
       toast.info("Current order parked — resumed the other one.");
     }
     setCart(clamped);
     setPaymentMethod(h.paymentMethod);
     setCashInput(h.cashInput);
+    setDiscountInput(h.discount ?? "");
     toast.success(
       dropped > 0
         ? `Order resumed — ${dropped} ${dropped === 1 ? "unit" : "units"} removed (out of stock).`
@@ -273,6 +281,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
           items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           paymentMethod,
           amountReceived: paymentMethod === "CASH" ? received : null,
+          discount: discount > 0 ? discount : null,
           salesman: salesmanName,
         }),
       });
@@ -479,7 +488,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
         <div className="hidden rounded-xl border bg-card p-4 sm:p-5 lg:sticky lg:top-20 lg:block">
           <CartPanel
             cart={cart}
-            total={total}
+            subtotal={total}
+            discount={discount}
+            onDiscount={setDiscountInput}
+            total={payable}
             paymentMethod={paymentMethod}
             onPaymentMethod={setPaymentMethod}
             cashInput={cashInput}
@@ -512,7 +524,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                 {cart.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"} in cart
               </p>
               <p className="truncate font-display text-xl font-bold tabular-nums text-primary">
-                {formatPKR(total)}
+                {formatPKR(payable)}
               </p>
             </div>
             <Button
@@ -536,7 +548,10 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
           </SheetHeader>
           <CartPanel
             cart={cart}
-            total={total}
+            subtotal={total}
+            discount={discount}
+            onDiscount={setDiscountInput}
+            total={payable}
             paymentMethod={paymentMethod}
             onPaymentMethod={setPaymentMethod}
             cashInput={cashInput}

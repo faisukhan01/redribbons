@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
+import { useShopSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
 
@@ -23,6 +24,7 @@ import type { Stats } from "@/lib/types";
  */
 export function ZReport({ stats, closedBy }: { stats: Stats; closedBy: string }) {
   const { report } = stats;
+  const settings = useShopSettings((s) => s.settings);
   const hasSales = stats.salesTodayCount > 0;
 
   return (
@@ -36,6 +38,9 @@ export function ZReport({ stats, closedBy }: { stats: Stats; closedBy: string })
         <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
           Bakery · Point of Sale
         </p>
+        {settings?.shopPhone ? (
+          <p className="mt-1 text-[10px] text-muted-foreground">☎ {settings.shopPhone}</p>
+        ) : null}
         <p className="mt-2.5 inline-block rounded border border-dashed border-foreground/40 px-3 py-1 font-display text-sm font-bold uppercase tracking-[0.2em]">
           End of Day Report
         </p>
@@ -77,6 +82,9 @@ export function ZReport({ stats, closedBy }: { stats: Stats; closedBy: string })
         <ZRow label="─ Cash transactions" value={String(report.cashCount)} muted />
         <ZRow label="Online collected" value={formatPKR(stats.onlineToday)} strong />
         <ZRow label="─ Online transactions" value={String(report.onlineCount)} muted />
+        {report.discountTotal > 0 ? (
+          <ZRow label="Discounts given" value={`− ${formatPKR(report.discountTotal)}`} />
+        ) : null}
         <ZRow label="Change given" value={formatPKR(report.changeGiven)} />
         <div className="flex items-baseline justify-between gap-2 border-t border-dashed border-foreground/25 pt-1 text-sm font-bold">
           <span className="uppercase tracking-wider">Net drawer (cash)</span>
@@ -113,6 +121,24 @@ export function ZReport({ stats, closedBy }: { stats: Stats; closedBy: string })
       )}
 
       <ZDivider />
+
+      {/* Staff sales today */}
+      {stats.staffToday.length > 1 ? (
+        <div className="space-y-0.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Staff sales today
+          </p>
+          {stats.staffToday.map((s) => (
+            <ZRow
+              key={s.salesman}
+              label={`${s.salesman} — ${formatNumber(s.count)} ${s.count === 1 ? "sale" : "sales"}`}
+              value={formatPKR(s.total)}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {stats.staffToday.length > 1 ? <ZDivider /> : null}
 
       {/* Stock note */}
       <ZRow

@@ -33,6 +33,8 @@ export interface HeldSale {
   items: CartItem[];
   paymentMethod: "CASH" | "ONLINE";
   cashInput: string;
+  /** Raw discount input (Rs string) — re-clamped against the subtotal on resume */
+  discount?: string;
   total: number;
 }
 

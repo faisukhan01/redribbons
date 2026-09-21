@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems, yesterdayAgg] =
+    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems, yesterdayAgg, discountAgg, todayStaffRows] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -82,6 +82,18 @@ export async function GET(req: Request) {
             createdAt: { gte: new Date(dayStart - 86_400_000), lt: since },
           },
         }),
+        // Discounts given today (Z-report line + dashboard)
+        db.sale.aggregate({
+          _sum: { discount: true },
+          where: { createdAt: { gte: since }, discount: { gt: 0 } },
+        }),
+        // Per-salesman breakdown for today (staff card)
+        db.sale.groupBy({
+          by: ["salesman"],
+          where: { createdAt: { gte: since } },
+          _count: true,
+          _sum: { total: true },
+        }),
       ]);
 
     const products = await db.product.findMany({ select: { price: true, stock: true } });
@@ -121,6 +133,10 @@ export async function GET(req: Request) {
       .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue)
       .slice(0, 5);
 
+    const staffToday = todayStaffRows
+      .map((r) => ({ salesman: r.salesman, count: r._count, total: r._sum.total ?? 0 }))
+      .sort((a, b) => b.total - a.total);
+
     const stats: Stats = {
       todaySales: todayAgg._sum.total ?? 0,
       yesterdayTotal: yesterdayAgg._sum.total ?? 0,
@@ -135,10 +151,12 @@ export async function GET(req: Request) {
       recentSales: recent,
       trend,
       topProducts: topProductsRaw,
+      staffToday,
       report: {
         cashCount: cashCountAgg._count,
         onlineCount: onlineCountAgg._count,
         changeGiven: changeAgg._sum.changeReturned ?? 0,
+        discountTotal: discountAgg._sum.discount ?? 0,
         topItems,
       },
     };

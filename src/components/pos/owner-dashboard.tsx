@@ -14,6 +14,7 @@ import {
   Smartphone,
   TrendingUp,
   TriangleAlert,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { StatCard, RecentSaleRow } from "@/components/pos/shared";
 import { ZReportDialog } from "@/components/pos/z-report";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/store";
+import { useShopSettings } from "@/lib/settings";
 import { formatNumber, formatPKR, greeting, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
@@ -164,6 +166,7 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
         if (!cancelled)
           setError(err instanceof Error ? err.message : "Unable to load dashboard.");
       });
+    void useShopSettings.getState().load(); // for Z-report shop lines
     return () => {
       cancelled = true;
     };
@@ -311,6 +314,44 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
               <span className="font-bold tabular-nums">{formatPKR(online)}</span>
             </div>
           </div>
+
+          {/* Staff sales today */}
+          {stats && stats.staffToday.length > 0 ? (
+            <div className="mt-4 border-t pt-3">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                <Users className="h-3.5 w-3.5" /> Staff sales today
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {stats.staffToday.map((s) => {
+                  const top = stats.staffToday[0]?.total || 1;
+                  const pct = Math.max(8, Math.round((s.total / top) * 100));
+                  return (
+                    <div key={s.salesman} title={`${s.salesman}: ${formatNumber(s.count)} sales · ${formatPKR(s.total)}`}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="truncate font-semibold text-foreground">{s.salesman}</span>
+                        <span className="shrink-0 tabular-nums font-bold text-foreground">
+                          {formatPKR(s.total)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            style={{ width: `${pct}%` }}
+                            className="h-full rounded-full bg-primary/60 rr-grow"
+                            role="img"
+                            aria-label={`${s.salesman}: ${formatPKR(s.total)} from ${s.count} sales`}
+                          />
+                        </div>
+                        <span className="w-14 shrink-0 text-right text-[11px] font-semibold tabular-nums text-muted-foreground">
+                          {formatNumber(s.count)} {s.count === 1 ? "sale" : "sales"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* 7-day trend */}

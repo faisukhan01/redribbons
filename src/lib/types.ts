@@ -35,6 +35,7 @@ export interface Sale {
   saleId: string;
   salesman: string;
   total: number;
+  discount: number;
   paymentMethod: "CASH" | "ONLINE";
   amountReceived: number | null;
   changeReturned: number | null;
@@ -82,7 +83,22 @@ export interface DayReport {
   cashCount: number;
   onlineCount: number;
   changeGiven: number;
+  discountTotal: number;
   topItems: ReportTopItem[];
+}
+
+/** One row of the "staff sales today" breakdown. */
+export interface StaffSalesRow {
+  salesman: string;
+  count: number;
+  total: number;
+}
+
+/** Owner-editable shop info that prints on receipts. */
+export interface ShopSettings {
+  shopPhone: string;
+  shopAddress: string;
+  receiptNote: string;
 }
 
 export interface Stats {
@@ -99,6 +115,7 @@ export interface Stats {
   recentSales: Sale[];
   trend: TrendPoint[];
   topProducts: TopProduct[];
+  staffToday: StaffSalesRow[];
   report: DayReport;
 }
 
@@ -119,6 +136,7 @@ export interface BackupFile {
     saleId: string;
     salesman: string;
     total: number;
+    discount?: number;
     paymentMethod: string;
     amountReceived: number | null;
     changeReturned: number | null;
@@ -131,6 +149,7 @@ export interface BackupFile {
       subtotal: number;
     }>;
   }>;
+  settings?: Record<string, string>;
 }
 
 export interface ImportRow {

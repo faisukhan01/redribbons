@@ -13,6 +13,7 @@ interface BackupSale {
   saleId: string;
   salesman: string;
   total: number;
+  discount?: number;
   paymentMethod: string;
   amountReceived: number | null;
   changeReturned: number | null;
@@ -33,13 +34,14 @@ export interface BackupFile {
   exportedAt: string;
   products: BackupProduct[];
   sales: BackupSale[];
+  settings?: Record<string, string>;
 }
 
-// GET /api/backup — download a full JSON snapshot (products + sales)
+// GET /api/backup — download a full JSON snapshot (products + sales + settings)
 export async function GET() {
   try {
     await ensureSeed();
-    const [products, sales] = await Promise.all([
+    const [products, sales, settingRows] = await Promise.all([
       db.product.findMany({
         orderBy: { productId: "asc" },
         select: {
@@ -59,6 +61,7 @@ export async function GET() {
           },
         },
       }),
+      db.setting.findMany(),
     ]);
 
     const backup: BackupFile = {
@@ -70,6 +73,7 @@ export async function GET() {
         saleId: s.saleId,
         salesman: s.salesman,
         total: s.total,
+        discount: s.discount,
         paymentMethod: s.paymentMethod,
         amountReceived: s.amountReceived,
         changeReturned: s.changeReturned,
@@ -82,6 +86,7 @@ export async function GET() {
           subtotal: i.subtotal,
         })),
       })),
+      settings: Object.fromEntries(settingRows.map((r) => [r.key, r.value])),
     };
     return NextResponse.json(backup);
   } catch (err) {
@@ -155,6 +160,7 @@ export async function POST(req: Request) {
         saleId,
         salesman: String(s?.salesman ?? "Salesman").trim() || "Salesman",
         total: Number(s?.total) || 0,
+        discount: Math.max(0, Number(s?.discount) || 0),
         paymentMethod: method,
         amountReceived: s?.amountReceived == null ? null : Number(s.amountReceived),
         changeReturned: s?.changeReturned == null ? null : Number(s.changeReturned),
@@ -211,6 +217,7 @@ export async function POST(req: Request) {
             saleId: s.saleId,
             salesman: s.salesman,
             total: s.total,
+            discount: s.discount ?? 0,
             paymentMethod: s.paymentMethod,
             amountReceived: s.amountReceived,
             changeReturned: s.changeReturned,
@@ -223,6 +230,20 @@ export async function POST(req: Request) {
       }
       return { products: products.length, sales: restoredSales, items: restoredItems, skippedItems };
     });
+
+    // Restore receipt settings (outside the data transaction — non-critical)
+    if (body.settings && typeof body.settings === "object") {
+      for (const key of ["shopPhone", "shopAddress", "receiptNote"]) {
+        const value = body.settings[key];
+        if (typeof value === "string" && value.trim() !== "") {
+          await db.setting.upsert({
+            where: { key },
+            update: { value: value.trim().slice(0, 200) },
+            create: { key, value: value.trim().slice(0, 200) },
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

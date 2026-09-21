@@ -34,11 +34,19 @@ model Sale {
   saleId         String     @unique // e.g. RR-000124
   salesman       String
   total          Float
+  discount       Float      @default(0) // amount deducted from the item subtotal
   paymentMethod  String // CASH | ONLINE
   amountReceived Float?
   changeReturned Float?
   createdAt      DateTime   @default(now())
   items          SaleItem[]
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // "shopPhone" | "shopAddress" | "receiptNote"
+  value     String   @default("")
+  updatedAt DateTime @updatedAt
 }
 
 model SaleItem {

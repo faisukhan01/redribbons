@@ -66,6 +66,17 @@ export async function POST(req: Request) {
       body?.amountReceived === undefined || body?.amountReceived === null
         ? null
         : Number(body.amountReceived);
+    // Optional per-sale discount in Rs (e.g. 50) — must be ≥ 0 and ≤ the item subtotal
+    const discount =
+      body?.discount === undefined || body?.discount === null || Number(body.discount) === 0
+        ? 0
+        : Number(body.discount);
+    if (!Number.isFinite(discount) || discount < 0) {
+      return NextResponse.json(
+        { error: "Discount must be a positive amount." },
+        { status: 400 }
+      );
+    }
 
     try {
       const sale = await db.$transaction(async (tx) => {
@@ -99,6 +110,11 @@ export async function POST(req: Request) {
           lines.push({ productId: p.id, name: p.name, quantity: qty, price: p.price, subtotal });
         }
 
+        if (discount > total) {
+          throw new Error("Discount cannot be larger than the order total.");
+        }
+        total = Math.round((total - discount) * 100) / 100;
+
         let received: number;
         let change = 0;
         if (paymentMethod === "CASH") {
@@ -122,6 +138,7 @@ export async function POST(req: Request) {
             saleId,
             salesman,
             total,
+            discount,
             paymentMethod,
             amountReceived: received,
             changeReturned: paymentMethod === "CASH" ? change : null,
@@ -152,6 +169,7 @@ export async function POST(req: Request) {
         "Payment amount is insufficient",
         "Please enter",
         "no longer exists",
+        "Discount cannot",
       ];
       if (known.some((k) => msg.includes(k))) {
         return NextResponse.json({ error: msg }, { status: 400 });

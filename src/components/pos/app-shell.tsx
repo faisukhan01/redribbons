@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, KeyRound, LayoutDashboard, LogOut, Package, ReceiptText, ScanBarcode, ShoppingBag } from "lucide-react";
+import { Crown, KeyRound, LayoutDashboard, LogOut, Package, ReceiptText, ScanBarcode, ShoppingBag, Store } from "lucide-react";
 import { BrandHeader } from "@/components/pos/brand";
 import { AccountDialog } from "@/components/pos/account-dialog";
 import { BackupMenu } from "@/components/pos/backup-menu";
+import { ReceiptSettingsDialog } from "@/components/pos/receipt-settings-dialog";
 import { cn } from "@/lib/utils";
 import type { Role, SessionUser } from "@/lib/types";
 
@@ -39,6 +40,7 @@ export function AppShell({
 }) {
   const items = NAV[user.role];
   const [accountOpen, setAccountOpen] = useState(false);
+  const [receiptSettingsOpen, setReceiptSettingsOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -89,6 +91,17 @@ export function AppShell({
               </div>
               <KeyRound className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
             </button>
+            {user.role === "OWNER" ? (
+              <button
+                type="button"
+                onClick={() => setReceiptSettingsOpen(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Receipt details — phone, address, note"
+                title="Receipt details (phone, address, note)"
+              >
+                <Store className="h-4 w-4" />
+              </button>
+            ) : null}
             {user.role === "OWNER" ? <BackupMenu /> : null}
             <button
               type="button"
@@ -105,6 +118,11 @@ export function AppShell({
 
       {/* Account (change PIN) dialog */}
       <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} user={user} />
+
+      {/* Receipt details (owner) */}
+      {user.role === "OWNER" ? (
+        <ReceiptSettingsDialog open={receiptSettingsOpen} onOpenChange={setReceiptSettingsOpen} />
+      ) : null}
 
       {/* Main */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-5 md:pb-10 md:pt-6">

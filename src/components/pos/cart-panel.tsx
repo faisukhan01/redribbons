@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import {
+  BadgePercent,
   Banknote,
   Loader2,
   Minus,
@@ -22,6 +24,9 @@ export type PayMethod = "CASH" | "ONLINE";
 
 interface CartPanelProps {
   cart: CartItem[];
+  subtotal: number;
+  discount: number;
+  onDiscount: (v: string) => void;
   total: number;
   paymentMethod: PayMethod;
   onPaymentMethod: (m: PayMethod) => void;
@@ -46,8 +51,15 @@ function sanitizeCash(v: string): string {
   return parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
 }
 
+function discountInputValue(discount: number): string {
+  return discount > 0 ? String(discount) : "";
+}
+
 export function CartPanel({
   cart,
+  subtotal,
+  discount,
+  onDiscount,
   total,
   paymentMethod,
   onPaymentMethod,
@@ -65,10 +77,12 @@ export function CartPanel({
   onClear,
   onComplete,
 }: CartPanelProps) {
+  const [discountOpen, setDiscountOpen] = useState(false);
   const empty = cart.length === 0;
   const cashOk = received >= total;
   const insufficient = received > 0 && !cashOk;
   const canComplete = !empty && (paymentMethod === "ONLINE" || cashOk) && !completing;
+  const hasDiscount = discount > 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -218,14 +232,97 @@ export function CartPanel({
         )}
       </div>
 
-      {/* Total */}
-      <div className="flex items-center justify-between border-t pt-3">
-        <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Total
-        </span>
-        <span className="font-display text-2xl font-bold tabular-nums text-primary">
-          {formatPKR(total)}
-        </span>
+      {/* Totals: subtotal → discount → payable */}
+      <div className="border-t pt-3">
+        {hasDiscount ? (
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Subtotal
+            </span>
+            <span className="text-sm font-semibold tabular-nums text-muted-foreground">
+              {formatPKR(subtotal)}
+            </span>
+          </div>
+        ) : null}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Total
+            </span>
+            {!empty ? (
+              <button
+                type="button"
+                onClick={() => setDiscountOpen((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold transition-colors",
+                  hasDiscount
+                    ? "border-[#2E7D4F]/40 bg-[#EAF4EE] text-[#2E7D4F]"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+                )}
+                title="Apply a discount to this sale"
+              >
+                <BadgePercent className="h-3 w-3" />
+                {hasDiscount ? `− ${formatPKR(discount)}` : "Discount"}
+              </button>
+            ) : null}
+          </div>
+          <span className="font-display text-2xl font-bold tabular-nums text-primary">
+            {formatPKR(total)}
+          </span>
+        </div>
+
+        {discountOpen && !empty ? (
+          <div className="mt-2 rounded-xl bg-muted/60 p-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-muted-foreground">Rs.</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={discountInputValue(discount)}
+                onChange={(e) => onDiscount(sanitizeCash(e.target.value))}
+                placeholder="0"
+                aria-label="Discount amount in rupees"
+                className="h-9 min-w-0 flex-1 rounded-lg border bg-card px-3 text-right text-base font-bold tabular-nums outline-none ring-[#2E7D4F] focus:ring-2"
+              />
+              {hasDiscount ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDiscount("");
+                    setDiscountOpen(false);
+                  }}
+                  aria-label="Remove discount"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {[5, 10, 20].map((pct) => {
+                const amount = Math.round(subtotal * (pct / 100));
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => onDiscount(String(amount))}
+                    className="rounded-full border bg-card px-2.5 py-1 text-xs font-bold tabular-nums text-foreground transition-colors hover:border-[#2E7D4F]/50 hover:bg-[#EAF4EE] hover:text-[#2E7D4F]"
+                  >
+                    {pct}% · {amount.toLocaleString()}
+                  </button>
+                );
+              })}
+              <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+                Max {formatPKR(subtotal)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+        {hasDiscount && !discountOpen ? (
+          <p className="mt-1 text-right text-[11px] font-semibold text-[#2E7D4F]">
+            Discount applied — {formatPKR(subtotal - total)} off
+          </p>
+        ) : null}
       </div>
 
       {/* Payment */}

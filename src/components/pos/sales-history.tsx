@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Printer, ReceiptText, ScrollText, Search } from "lucide-react";
+import { Download, Printer, ReceiptText, ScrollText, Search, BadgePercent } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import { Receipt, printReceipt } from "@/components/pos/receipt";
 import { ZReportDialog } from "@/components/pos/z-report";
 import { api } from "@/lib/api";
 import { downloadCSV, todayStamp } from "@/lib/csv";
+import { useShopSettings } from "@/lib/settings";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/store";
@@ -45,6 +46,7 @@ export function SalesHistory() {
         if (!cancelled)
           setError(err instanceof Error ? err.message : "Unable to load sales history.");
       });
+    void useShopSettings.getState().load(); // for receipt shop lines
     return () => {
       cancelled = true;
     };
@@ -81,7 +83,7 @@ export function SalesHistory() {
     }
     downloadCSV(
       `red-ribbons-sales-${todayStamp()}.csv`,
-      ["Sale ID", "Date & Time", "Salesman", "Payment", "Items", "Item Detail", "Total (Rs.)", "Received (Rs.)", "Change (Rs.)"],
+      ["Sale ID", "Date & Time", "Salesman", "Payment", "Items", "Item Detail", "Discount (Rs.)", "Total (Rs.)", "Received (Rs.)", "Change (Rs.)"],
       visible.map((s) => [
         s.saleId,
         formatDateTime(s.createdAt),
@@ -89,6 +91,7 @@ export function SalesHistory() {
         s.paymentMethod === "CASH" ? "Cash" : "Online",
         s.items.reduce((n, i) => n + i.quantity, 0),
         s.items.map((i) => `${i.quantity}x ${i.name} @ ${i.price}`).join("; "),
+        (s.discount ?? 0) > 0 ? s.discount : "",
         s.total,
         s.amountReceived ?? "",
         s.changeReturned ?? "",
@@ -277,6 +280,13 @@ export function SalesHistory() {
                     Paid online — full amount recorded.
                   </p>
                 )}
+
+                {(sale.discount ?? 0) > 0 ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#EAF4EE] px-2.5 py-1 text-[11px] font-bold text-[#2E7D4F]">
+                    <BadgePercent className="h-3 w-3" />
+                    Discount applied: − {formatPKR(sale.discount)}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
