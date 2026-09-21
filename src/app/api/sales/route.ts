@@ -1,0 +1,160 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { ensureSeed } from "@/lib/seed";
+
+// GET /api/sales?limit=100
+export async function GET(req: Request) {
+  try {
+    await ensureSeed();
+    const url = new URL(req.url);
+    const limit = Math.min(Number(url.searchParams.get("limit") ?? 100) || 100, 500);
+    const sales = await db.sale.findMany({
+      orderBy: { id: "desc" },
+      take: limit,
+      include: { items: true },
+    });
+    return NextResponse.json({ sales });
+  } catch (err) {
+    console.error("sales list error", err);
+    return NextResponse.json(
+      { error: "Unable to load sales history right now." },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/sales — complete a sale (atomic: stock check, sale record, stock update)
+export async function POST(req: Request) {
+  try {
+    await ensureSeed();
+    const body = await req.json().catch(() => null);
+    const rawItems: Array<{ productId: number; quantity: number }> = Array.isArray(
+      body?.items
+    )
+      ? body.items
+      : [];
+    const paymentMethod = String(body?.paymentMethod ?? "").toUpperCase();
+
+    if (rawItems.length === 0) {
+      return NextResponse.json({ error: "The cart is empty." }, { status: 400 });
+    }
+    if (paymentMethod !== "CASH" && paymentMethod !== "ONLINE") {
+      return NextResponse.json(
+        { error: "Please select a payment method." },
+        { status: 400 }
+      );
+    }
+    for (const it of rawItems) {
+      if (!Number.isInteger(Number(it.productId)) || !Number.isInteger(Number(it.quantity)) || Number(it.quantity) <= 0) {
+        return NextResponse.json(
+          { error: "Please enter a valid quantity." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const salesman = String(body?.salesman ?? "Salesman").trim() || "Salesman";
+    const amountReceived =
+      body?.amountReceived === undefined || body?.amountReceived === null
+        ? null
+        : Number(body.amountReceived);
+
+    try {
+      const sale = await db.$transaction(async (tx) => {
+        // Load products inside the transaction for a consistent stock check
+        const ids = rawItems.map((i) => Number(i.productId));
+        const products = await tx.product.findMany({ where: { id: { in: ids } } });
+        const map = new Map(products.map((p) => [p.id, p]));
+
+        let total = 0;
+        const lines: Array<{
+          productId: number;
+          name: string;
+          quantity: number;
+          price: number;
+          subtotal: number;
+        }> = [];
+
+        for (const it of rawItems) {
+          const p = map.get(Number(it.productId));
+          if (!p) {
+            throw new Error("A product in the cart no longer exists. Please refresh and try again.");
+          }
+          const qty = Number(it.quantity);
+          if (p.stock < qty) {
+            throw new Error(
+              `Insufficient stock. Only ${p.stock} ${p.stock === 1 ? "item is" : "items are"} available for ${p.name}.`
+            );
+          }
+          const subtotal = p.price * qty;
+          total += subtotal;
+          lines.push({ productId: p.id, name: p.name, quantity: qty, price: p.price, subtotal });
+        }
+
+        let received: number;
+        let change = 0;
+        if (paymentMethod === "CASH") {
+          if (amountReceived === null || !Number.isFinite(amountReceived)) {
+            throw new Error("Please enter the amount the customer gave.");
+          }
+          if (amountReceived < total) {
+            throw new Error("Payment amount is insufficient. The customer must pay the full total.");
+          }
+          received = amountReceived;
+          change = Math.round((received - total) * 100) / 100;
+        } else {
+          received = total;
+        }
+
+        const count = await tx.sale.count();
+        const saleId = `RR-${String(count + 1).padStart(6, "0")}`;
+
+        const created = await tx.sale.create({
+          data: {
+            saleId,
+            salesman,
+            total,
+            paymentMethod,
+            amountReceived: received,
+            changeReturned: paymentMethod === "CASH" ? change : null,
+            items: { create: lines },
+          },
+          include: { items: true },
+        });
+
+        for (const line of lines) {
+          await tx.product.update({
+            where: { id: line.productId },
+            data: {
+              stock: { decrement: line.quantity },
+              soldQuantity: { increment: line.quantity },
+            },
+          });
+        }
+
+        return created;
+      });
+
+      return NextResponse.json({ sale }, { status: 201 });
+    } catch (txErr) {
+      const msg = txErr instanceof Error ? txErr.message : "Sale could not be completed.";
+      // Business-rule failures become clean 400s
+      const known = [
+        "Insufficient stock",
+        "Payment amount is insufficient",
+        "Please enter",
+        "no longer exists",
+      ];
+      if (known.some((k) => msg.includes(k))) {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("sale create error", err);
+    return NextResponse.json(
+      { error: "Sale could not be completed. Please try again." },
+      { status: 500 }
+    );
+  }
+}

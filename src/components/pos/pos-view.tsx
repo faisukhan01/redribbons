@@ -1,0 +1,373 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Plus, Search, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { CartPanel, type PayMethod } from "@/components/pos/cart-panel";
+import { SaleSuccess } from "@/components/pos/sale-success";
+import { ProductTile } from "@/components/pos/shared";
+import { api } from "@/lib/api";
+import { formatPKR } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { CartItem, Product, Sale } from "@/lib/types";
+
+export function PosView({ salesmanName }: { salesmanName: string }) {
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [idInput, setIdInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<PayMethod>("CASH");
+  const [cashInput, setCashInput] = useState("");
+  const [completing, setCompleting] = useState(false);
+  const [success, setSuccess] = useState<Sale | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Manual reload after a completed sale (stock changed) — never called during render
+  const load = useCallback(async () => {
+    try {
+      const data = await api<{ products: Product[] }>("/api/products");
+      setProducts(data.products);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to load products.");
+    }
+  }, []);
+
+  // Initial load — setState happens in promise callbacks
+  useEffect(() => {
+    let cancelled = false;
+    api<{ products: Product[] }>("/api/products")
+      .then((data) => {
+        if (!cancelled) setProducts(data.products);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          toast.error(err instanceof Error ? err.message : "Unable to load products.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const byCode = useMemo(() => {
+    const map = new Map<string, Product>();
+    (products ?? []).forEach((p) => map.set(p.productId.toLowerCase(), p));
+    return map;
+  }, [products]);
+
+  const categories = useMemo(
+    () => Array.from(new Set((products ?? []).map((p) => p.category))).sort(),
+    [products]
+  );
+
+  const preview = idInput.trim() ? byCode.get(idInput.trim().toLowerCase()) ?? null : null;
+
+  const browse = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (products ?? []).filter((p) => {
+      if (category !== "all" && p.category !== category) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || p.productId.toLowerCase().includes(q);
+    });
+  }, [products, search, category]);
+
+  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const received = paymentMethod === "CASH" ? parseFloat(cashInput || "0") || 0 : total;
+  const change = Math.max(0, received - total);
+
+  function addToCart(p: Product, qty = 1) {
+    if (p.stock <= 0) {
+      toast.error(`${p.name} is out of stock.`);
+      return;
+    }
+    setCart((prev) => {
+      const line = prev.find((i) => i.productId === p.id);
+      if (line) {
+        if (line.quantity + qty > p.stock) {
+          toast.error(`Insufficient stock. Only ${p.stock} items are available.`);
+          return prev;
+        }
+        return prev.map((i) =>
+          i.productId === p.id ? { ...i, quantity: i.quantity + qty, stock: p.stock } : i
+        );
+      }
+      if (qty > p.stock) {
+        toast.error(`Insufficient stock. Only ${p.stock} items are available.`);
+        return prev;
+      }
+      return [
+        ...prev,
+        { productId: p.id, code: p.productId, name: p.name, price: p.price, stock: p.stock, quantity: qty },
+      ];
+    });
+  }
+
+  function handleIdAdd() {
+    const code = idInput.trim().toLowerCase();
+    if (!code) {
+      toast.error("Please enter a Product ID.");
+      return;
+    }
+    const p = byCode.get(code);
+    if (!p) {
+      toast.error("Product not found. Check the ID and try again.");
+      return;
+    }
+    addToCart(p);
+    setIdInput("");
+  }
+
+  function setQty(productId: number, qty: number) {
+    setCart((prev) => {
+      if (qty <= 0) return prev.filter((i) => i.productId !== productId);
+      return prev.map((i) => {
+        if (i.productId !== productId) return i;
+        if (qty > i.stock) {
+          toast.error(`Insufficient stock. Only ${i.stock} items are available.`);
+          return { ...i, quantity: i.stock };
+        }
+        return { ...i, quantity: qty };
+      });
+    });
+  }
+
+  function removeLine(productId: number) {
+    setCart((prev) => prev.filter((i) => i.productId !== productId));
+  }
+
+  function clearCart() {
+    setCart([]);
+    setCashInput("");
+  }
+
+  async function completeSale() {
+    if (cart.length === 0) return;
+    setCompleting(true);
+    try {
+      const res = await api<{ sale: Sale }>("/api/sales", {
+        method: "POST",
+        body: JSON.stringify({
+          items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          paymentMethod,
+          amountReceived: paymentMethod === "CASH" ? received : null,
+          salesman: salesmanName,
+        }),
+      });
+      setSuccess(res.sale);
+      clearCart();
+      setIdInput("");
+      setSheetOpen(false);
+      toast.success("Sale completed successfully");
+      void load(); // refresh stock
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sale could not be completed.");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  if (success) {
+    return <SaleSuccess sale={success} onNewSale={() => setSuccess(null)} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">POS — New Sale</h1>
+          <p className="text-sm text-muted-foreground">
+            Enter Product ID → Add → Payment → Complete Sale
+          </p>
+        </div>
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-[1fr_minmax(370px,410px)]">
+        {/* Left: lookup + browse */}
+        <div className="min-w-0 space-y-4">
+          <div className="rounded-xl border bg-card p-4 sm:p-5">
+            <label
+              htmlFor="pos-id"
+              className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+            >
+              Product ID
+            </label>
+            <div className="mt-2 flex gap-2">
+              <Input
+                id="pos-id"
+                value={idInput}
+                onChange={(e) => setIdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleIdAdd();
+                  }
+                }}
+                placeholder="e.g. 101"
+                inputMode="text"
+                autoFocus
+                autoComplete="off"
+                className="h-14 min-w-0 flex-1 rounded-xl font-mono text-xl font-bold tracking-wide"
+              />
+              <Button
+                onClick={handleIdAdd}
+                className="h-14 gap-2 rounded-xl px-6 text-base font-bold uppercase tracking-wide sm:px-8"
+              >
+                <Plus className="h-5 w-5" /> Add
+              </Button>
+            </div>
+
+            {/* Live preview */}
+            {idInput.trim() !== "" ? (
+              preview ? (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-accent/50 p-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate font-display text-lg font-bold">{preview.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-bold text-primary">{formatPKR(preview.price)}</span>
+                      {" · Available: "}
+                      <span className="font-bold text-foreground">{preview.stock}</span>
+                      {" · "}
+                      {preview.category}
+                    </p>
+                  </div>
+                  <span className="hidden shrink-0 text-xs font-semibold text-muted-foreground sm:block">
+                    Press Enter or ADD
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl bg-muted/60 p-3 text-sm font-semibold text-muted-foreground">
+                  No product found with ID “{idInput.trim()}” — check and try again.
+                </p>
+              )
+            ) : null}
+          </div>
+
+          {/* Browse */}
+          <div className="rounded-xl border bg-card p-4 sm:p-5">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Or search by product name…"
+                className="pl-9"
+                aria-label="Search products"
+              />
+            </div>
+
+            <div className="rr-scroll mt-3 flex gap-1.5 overflow-x-auto pb-1">
+              {["all", ...categories].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
+                    category === c
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-accent"
+                  )}
+                >
+                  {c === "all" ? "All" : c}
+                </button>
+              ))}
+            </div>
+
+            {products === null ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading products…
+              </div>
+            ) : browse.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No products match your search.
+              </p>
+            ) : (
+              <div className="rr-scroll mt-3 grid max-h-[38vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:max-h-[42vh] xl:grid-cols-4">
+                {browse.map((p) => (
+                  <ProductTile
+                    key={p.id}
+                    name={p.name}
+                    price={p.price}
+                    stock={p.stock}
+                    onClick={() => addToCart(p)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: cart + payment (desktop) */}
+        <div className="hidden rounded-xl border bg-card p-4 sm:p-5 lg:sticky lg:top-20 lg:block">
+          <CartPanel
+            cart={cart}
+            total={total}
+            paymentMethod={paymentMethod}
+            onPaymentMethod={setPaymentMethod}
+            cashInput={cashInput}
+            onCashInput={setCashInput}
+            received={received}
+            change={change}
+            completing={completing}
+            onSetQty={setQty}
+            onRemove={removeLine}
+            onClear={clearCart}
+            onComplete={() => void completeSale()}
+          />
+        </div>
+      </div>
+
+      {/* Mobile sticky checkout bar */}
+      {cart.length > 0 ? (
+        <div
+          className="fixed inset-x-0 bottom-16 z-30 border-t bg-card/95 px-4 py-3 backdrop-blur lg:hidden"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {cart.reduce((s, i) => s + i.quantity, 0)} items in cart
+              </p>
+              <p className="truncate font-display text-xl font-bold tabular-nums text-primary">
+                {formatPKR(total)}
+              </p>
+            </div>
+            <Button
+              onClick={() => setSheetOpen(true)}
+              className="h-12 gap-2 rounded-xl px-6 font-bold uppercase tracking-wide"
+            >
+              <ShoppingBag className="h-4 w-4" /> Checkout
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Mobile checkout sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="rr-scroll max-h-[92dvh] overflow-y-auto rounded-t-2xl p-5">
+          <SheetHeader className="p-0 pb-2">
+            <SheetTitle className="font-display text-xl">Checkout</SheetTitle>
+          </SheetHeader>
+          <CartPanel
+            cart={cart}
+            total={total}
+            paymentMethod={paymentMethod}
+            onPaymentMethod={setPaymentMethod}
+            cashInput={cashInput}
+            onCashInput={setCashInput}
+            received={received}
+            change={change}
+            completing={completing}
+            onSetQty={setQty}
+            onRemove={removeLine}
+            onClear={clearCart}
+            onComplete={() => void completeSale()}
+          />
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}

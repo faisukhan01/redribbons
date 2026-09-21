@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  name      String
+  role      String // OWNER | SALESMAN
+  pin       String
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id           Int        @id @default(autoincrement())
+  productId    String     @unique // human-facing code, e.g. "101"
+  name         String
+  category     String
+  price        Float
+  stock        Int        @default(0)
+  soldQuantity Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  saleItems    SaleItem[]
+}
+
+model Sale {
+  id             Int        @id @default(autoincrement())
+  saleId         String     @unique // e.g. RR-000124
+  salesman       String
+  total          Float
+  paymentMethod  String // CASH | ONLINE
+  amountReceived Float?
+  changeReturned Float?
+  createdAt      DateTime   @default(now())
+  items          SaleItem[]
+}
+
+model SaleItem {
+  id        Int      @id @default(autoincrement())
+  saleId    Int
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String // snapshot of product name at sale time
+  quantity  Int
+  price     Float
+  subtotal  Float
+}
