@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Printer, Scissors } from "lucide-react";
+import { CheckCircle2, CheckCheck, Loader2, Printer, Scissors } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
+import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import type { Sale } from "@/lib/types";
 
@@ -19,8 +21,19 @@ const RIBBONS = [
   { left: "90%", delay: "0.5s", color: "#7A0F15" },
 ];
 
-export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => void }) {
+export function SaleSuccess({
+  sale,
+  orderLink,
+  onNewSale,
+}: {
+  sale: Sale;
+  /** Pre-order this sale was loaded from (via "Load into POS"), if any. */
+  orderLink?: { id: number; label: string } | null;
+  onNewSale: () => void;
+}) {
   const [printing, setPrinting] = useState(false);
+  const [markingUp, setMarkingUp] = useState(false);
+  const [pickedUp, setPickedUp] = useState(false);
   const { t } = useT();
 
   // Enter starts the next sale from the success screen (counter speed)
@@ -47,6 +60,24 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
     }, 50);
   }
 
+  /** Close the loop on a pre-order picked up at the counter. */
+  async function markOrderPickedUp() {
+    if (!orderLink) return;
+    setMarkingUp(true);
+    try {
+      await api(`/api/orders/${orderLink.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "DONE" }),
+      });
+      setPickedUp(true);
+      toast.success(`${orderLink.label} ${t("pickedUpDone")}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update the order.");
+    } finally {
+      setMarkingUp(false);
+    }
+  }
+
   return (
     <div className="relative mx-auto flex max-w-md flex-col items-center py-6 text-center sm:py-10">
       {/* Ribbon confetti (aria-hidden, behind the check) */}
@@ -67,6 +98,31 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
       <p className="mt-1 text-sm text-muted-foreground">
         {t("thanksRecorded")}
       </p>
+
+      {/* Pre-order pickup prompt — closes the book on this order */}
+      {orderLink ? (
+        <div className="rr-pop mt-5 w-full rounded-xl border border-[#2E7D4F]/30 bg-[#EAF4EE]/50 p-4">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#2E7D4F]">
+            {t("fromPreOrder")}
+          </p>
+          <p className="mt-1 font-mono text-base font-bold text-foreground">{orderLink.label}</p>
+          {pickedUp ? (
+            <p className="mt-2.5 flex items-center justify-center gap-1.5 text-sm font-bold text-[#2E7D4F]">
+              <CheckCheck className="h-4 w-4" />
+              {t("pickedUpDoneLabel")}
+            </p>
+          ) : (
+            <Button
+              onClick={() => void markOrderPickedUp()}
+              disabled={markingUp}
+              className="mt-2.5 h-11 w-full gap-2 rounded-xl bg-[#2E7D4F] font-bold text-white hover:bg-[#256B43]"
+            >
+              {markingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+              {t("markPickedUpBtn")}
+            </Button>
+          )}
+        </div>
+      ) : null}
 
       {/* Receipt preview with a playful tear-here line */}
       <div className="mt-6 w-full">
@@ -91,7 +147,7 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
         <Button
           size="lg"
           onClick={onNewSale}
-          className="h-14 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)]"
+          className="h-14 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)] transition-all active:scale-[0.99]"
         >
           {t("newSale")}
         </Button>

@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -109,6 +110,7 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<"ALL" | OrderStatus>("ALL");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"new" | "pickup">("new");
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
@@ -144,7 +146,7 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (orders ?? []).filter((o) => {
+    let list = (orders ?? []).filter((o) => {
       if (filter !== "ALL" && o.status !== filter) return false;
       if (!q) return true;
       return (
@@ -153,7 +155,22 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
         o.customerPhone.toLowerCase().includes(q)
       );
     });
-  }, [orders, filter, search]);
+    // "Pickup soon": live orders by earliest dueAt (overdue naturally on top,
+    // unscheduled last), closed orders tucked underneath, newest first.
+    if (sort === "pickup") {
+      const isLive = (o: Order) => o.status === "PENDING" || o.status === "READY";
+      const live = list
+        .filter(isLive)
+        .sort((a, b) => {
+          const ta = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+          const tb = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+          return ta - tb;
+        });
+      const closed = list.filter((o) => !isLive(o));
+      list = [...live, ...closed];
+    }
+    return list;
+  }, [orders, filter, search, sort]);
 
   async function setStatus(order: Order, status: OrderStatus, okMsg: string) {
     setBusyId(order.id);
@@ -204,7 +221,7 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
       toast.error(t("nothingInStock"));
       return;
     }
-    setIntent(items, order.orderId);
+    setIntent(items, order.orderId, order.id);
     onNavigate("pos");
     if (order.advance > 0) {
       const balance = Math.max(0, order.total - order.advance);
@@ -309,29 +326,53 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
 
       {/* Filters + search */}
       <div className="rounded-xl border bg-card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("searchPreOrders")}
-            className="sm:max-w-xs"
-            aria-label="Search pre-orders"
-          />
-          <div className="rr-scroll flex gap-1.5 overflow-x-auto pb-0.5">
-            {FILTERS.map((s) => (
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPreOrders")}
+              className="sm:max-w-xs"
+              aria-label="Search pre-orders"
+            />
+            <div className="rr-scroll flex gap-1.5 overflow-x-auto pb-0.5">
+              {FILTERS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFilter(s)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
+                    filter === s
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-secondary text-secondary-foreground hover:bg-accent"
+                  )}
+                >
+                  {s === "ALL" ? t("allCaps") : statusLabel(s)}
+                  <span className="ml-1.5 tabular-nums opacity-75">{counts[s]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div
+            className="flex shrink-0 self-start rounded-lg border bg-card p-1 xl:self-auto"
+            role="group"
+            aria-label="Sort pre-orders"
+          >
+            {(["new", "pickup"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
-                onClick={() => setFilter(s)}
+                onClick={() => setSort(s)}
+                title={s === "new" ? t("sortNewestTitle") : t("sortPickupTitle")}
                 className={cn(
-                  "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
-                  filter === s
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-secondary text-secondary-foreground hover:bg-accent"
+                  "rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors",
+                  sort === s
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {s === "ALL" ? t("allCaps") : statusLabel(s)}
-                <span className="ml-1.5 tabular-nums opacity-75">{counts[s]}</span>
+                {s === "new" ? t("sortNewest") : t("sortPickup")}
               </button>
             ))}
           </div>
@@ -340,8 +381,22 @@ export function OrdersView({ role, createdBy, onNavigate }: { role: Role; create
 
       {/* Orders */}
       {orders === null ? (
-        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("loadingPreOrders")}
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border bg-card p-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <Skeleton className="mt-3 h-6 w-40" />
+              <Skeleton className="mt-2 h-4 w-28" />
+              <div className="mt-4 space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+              <Skeleton className="mt-4 h-8 w-full rounded-lg" />
+            </div>
+          ))}
         </div>
       ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-10 text-center">

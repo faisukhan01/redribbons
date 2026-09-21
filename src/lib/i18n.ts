@@ -171,6 +171,14 @@ const UR: Record<string, string> = {
   advanceSavedToast: "ایڈوانس درج ہو گیا —",
   balanceDueAtPickupToast: "پک اپ پر واجب الادا:",
   clearAdvance: "ایڈوانس ہٹائیں",
+  // pre-order pickup prompt on the sale success screen
+  fromPreOrder: "یہ سیل ایڈوانس آرڈر سے لوڈ ہوئی",
+  markPickedUpBtn: "اٹھا لیا مارک کریں",
+  pickedUpDoneLabel: "اٹھا لیا نشان زد ہو گیا",
+  sortNewest: "نئے",
+  sortPickup: "پک اپ کے وقت",
+  sortNewestTitle: "سب سے نئے آرڈر پہلے",
+  sortPickupTitle: "جلد پک اپ والے پہلے",
 };
 
 /** Translate a key for the active language. Falls back to English. */
@@ -319,6 +327,14 @@ const EN: Record<string, string> = {
   advanceSavedToast: "advance recorded —",
   balanceDueAtPickupToast: "Balance due at pickup:",
   clearAdvance: "Clear advance",
+  // pre-order pickup prompt on the sale success screen
+  fromPreOrder: "This sale was loaded from pre-order",
+  markPickedUpBtn: "Mark picked up",
+  pickedUpDoneLabel: "Marked as picked up",
+  sortNewest: "Newest",
+  sortPickup: "Pickup soon",
+  sortNewestTitle: "Newest orders first",
+  sortPickupTitle: "Earliest pickups first — overdue on top",
 };
 
 /** Convenience hook: `const { t, lang, toggle } = useT()` */

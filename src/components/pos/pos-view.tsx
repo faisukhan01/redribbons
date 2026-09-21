@@ -34,6 +34,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   const [discountInput, setDiscountInput] = useState("");
   const [completing, setCompleting] = useState(false);
   const [success, setSuccess] = useState<Sale | null>(null);
+  const [linkedOrder, setLinkedOrder] = useState<{ id: number; label: string } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reprintOpen, setReprintOpen] = useState(false);
   const [myDay, setMyDay] = useState<{ count: number; revenue: number; items: number } | null>(null);
@@ -100,6 +101,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     const intent = useCartIntent.getState().consumeIntent();
     if (intent) {
       setCart(intent.items);
+      if (intent.orderId) {
+        setLinkedOrder({ id: intent.orderId, label: intent.label });
+      }
       toast.success(`Pre-order ${intent.label} loaded into the cart — complete the sale, then mark it picked up.`, {
         duration: 6000,
       });
@@ -254,10 +258,16 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     setCart((prev) => prev.filter((i) => i.productId !== productId));
   }
 
-  function clearCart() {
+  /** Wipe cart + payment inputs, keep the pre-order link (used after a sale). */
+  function resetCounter() {
     setCart([]);
     setCashInput("");
     setDiscountInput("");
+  }
+
+  function clearCart() {
+    resetCounter();
+    setLinkedOrder(null); // manual Clear abandons the pre-order link too
   }
 
   /** Park the current cart (with its payment state) and clear the counter. */
@@ -296,6 +306,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
       toast.info("Current order parked — resumed the other one.");
     }
     setCart(clamped);
+    setLinkedOrder(null); // resumed carts are no longer tied to the pre-order
     setPaymentMethod(h.paymentMethod);
     setCashInput(h.cashInput);
     setDiscountInput(h.discount ?? "");
@@ -327,7 +338,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
       });
       setSuccess(res.sale);
       useLastSale.getState().setSale(res.sale); // enables "reprint last receipt"
-      clearCart();
+      resetCounter(); // keep linkedOrder so the success screen can offer "mark picked up"
       setIdInput("");
       setSheetOpen(false);
       toast.success("Sale completed successfully");
@@ -341,7 +352,16 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   }
 
   if (success) {
-    return <SaleSuccess sale={success} onNewSale={() => setSuccess(null)} />;
+    return (
+      <SaleSuccess
+        sale={success}
+        orderLink={linkedOrder}
+        onNewSale={() => {
+          setSuccess(null);
+          setLinkedOrder(null);
+        }}
+      />
+    );
   }
 
   return (

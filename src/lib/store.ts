@@ -97,18 +97,22 @@ interface CartIntentState {
   pending: CartItem[] | null;
   /** Label for the toast, e.g. "RO-000012". */
   label: string | null;
-  setIntent: (items: CartItem[], label: string) => void;
-  consumeIntent: () => { items: CartItem[]; label: string } | null;
+  /** DB id of the source pre-order, so the success screen can offer
+   *  "mark picked up" once the sale is completed. */
+  orderId: number | null;
+  setIntent: (items: CartItem[], label: string, orderId?: number) => void;
+  consumeIntent: () => { items: CartItem[]; label: string; orderId: number | null } | null;
 }
 
 export const useCartIntent = create<CartIntentState>()((set, get) => ({
   pending: null,
   label: null,
-  setIntent: (items, label) => set({ pending: items, label }),
+  orderId: null,
+  setIntent: (items, label, orderId) => set({ pending: items, label, orderId: orderId ?? null }),
   consumeIntent: () => {
-    const { pending, label } = get();
+    const { pending, label, orderId } = get();
     if (!pending || pending.length === 0) return null;
-    set({ pending: null, label: null });
-    return { items: pending, label: label ?? "" };
+    set({ pending: null, label: null, orderId: null });
+    return { items: pending, label: label ?? "", orderId };
   },
 }));

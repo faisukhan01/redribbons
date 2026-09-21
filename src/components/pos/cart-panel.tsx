@@ -403,7 +403,10 @@ export function CartPanel({
               </button>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg px-1 pt-1">
+            <div
+              key={cashOk ? "ok" : "bad"}
+              className="rr-pop flex items-center justify-between rounded-lg px-1 pt-1"
+            >
               {cashInput === "" ? (
                 <p className="text-xs text-muted-foreground">{t("enterAmountToCalculateChange")}</p>
               ) : cashOk ? (
@@ -443,7 +446,7 @@ export function CartPanel({
         size="lg"
         onClick={onComplete}
         disabled={!canComplete}
-        className="mt-3 h-14 w-full gap-2 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)] transition-shadow hover:shadow-[0_12px_28px_-10px_rgba(169,26,36,0.7)]"
+        className="mt-3 h-14 w-full gap-2 rounded-xl bg-gradient-to-r from-primary to-[#8E1620] text-base font-bold uppercase tracking-wide shadow-[0_10px_24px_-10px_rgba(169,26,36,0.6)] transition-all hover:shadow-[0_12px_28px_-10px_rgba(169,26,36,0.7)] active:scale-[0.99]"
       >
         {completing ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
         {completing ? t("completing") : `${t("completeSale")} · ${formatPKR(total)}`}
