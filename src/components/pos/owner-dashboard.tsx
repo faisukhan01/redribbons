@@ -5,8 +5,10 @@ import {
   ArrowRight,
   Banknote,
   Boxes,
+  Crown,
   Package,
   PackagePlus,
+  ReceiptText,
   RefreshCw,
   ShoppingBag,
   Smartphone,
@@ -16,7 +18,9 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StatCard, RecentSaleRow } from "@/components/pos/shared";
+import { ZReportDialog } from "@/components/pos/z-report";
 import { api } from "@/lib/api";
+import { useSession } from "@/lib/store";
 import { formatNumber, formatPKR, greeting, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Stats } from "@/lib/types";
@@ -100,6 +104,8 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restocking, setRestocking] = useState<number | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const userName = useSession((s) => s.user?.name ?? "Owner");
 
   /** Quick restock: add 10 units without leaving the dashboard. */
   async function quickRestock(id: number, name: string) {
@@ -165,16 +171,28 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           </h1>
           <p className="text-sm text-muted-foreground">{formatDate(new Date().toISOString())} · Here is how the bakery is doing today.</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void load()}
-          disabled={loading}
-          className="gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReportOpen(true)}
+            disabled={!stats}
+            className="gap-2 border-primary/30 font-bold text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            <ReceiptText className="h-4 w-4" />
+            End-of-Day Report
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void load()}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -286,6 +304,76 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
       {/* Recent transactions */}
       <div className="rounded-xl border bg-card p-5">
         <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+            <Crown className="h-5 w-5 text-primary" />
+            Best Sellers
+          </h2>
+          <p className="text-xs text-muted-foreground">All-time units sold</p>
+        </div>
+        {stats && stats.topProducts.length > 0 ? (
+          <div className="mt-3 grid gap-x-8 md:grid-cols-2">
+            {stats.topProducts.map((p, i) => {
+              const max = Math.max(...stats.topProducts.map((x) => x.soldQuantity), 1);
+              const pct = Math.max(6, Math.round((p.soldQuantity / max) * 100));
+              return (
+                <div
+                  key={p.id}
+                  className="group border-b border-border/70 py-2.5 last:border-b-0"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums",
+                          i === 0
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-accent text-primary"
+                        )}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p.category} · {formatPKR(p.price)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold tabular-nums text-foreground">
+                        {formatNumber(p.soldQuantity)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">sold</p>
+                    </div>
+                  </div>
+                  <div className="mt-1.5 ml-[38px] h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      role="img"
+                      aria-label={`${p.name}: ${p.soldQuantity} sold`}
+                      title={`${p.name} · ${formatNumber(p.soldQuantity)} sold all-time`}
+                      style={{ width: `${pct}%` }}
+                      className={cn(
+                        "h-full rounded-full rr-grow",
+                        i === 0
+                          ? "bg-gradient-to-r from-primary to-[#8E1620]"
+                          : "bg-primary/40"
+                      )}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {loading ? "Loading…" : "No sales recorded yet — best sellers will appear here."}
+          </p>
+        )}
+      </div>
+
+      {/* Recent transactions */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold">Recent Transactions</h2>
           <button
             type="button"
@@ -380,6 +468,14 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
           </p>
         )}
       </div>
+
+      {/* End-of-day report preview + print */}
+      <ZReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        stats={stats}
+        closedBy={userName}
+      />
     </div>
   );
 }

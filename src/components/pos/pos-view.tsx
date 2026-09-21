@@ -69,7 +69,19 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
     [products]
   );
 
-  const preview = idInput.trim() ? byCode.get(idInput.trim().toLowerCase()) ?? null : null;
+  // Quick-add with quantity: "101*3" or "101x3" adds 3× product 101 at once.
+  const QUICK_ADD_RE = /^(\S+?)\s*[*xX]\s*(\d{1,3})$/;
+  const parsedInput = useMemo(() => {
+    const raw = idInput.trim();
+    if (!raw) return { product: null as Product | null, qty: 1 };
+    const m = raw.match(QUICK_ADD_RE);
+    if (m) {
+      const qty = Math.max(1, Math.min(999, parseInt(m[2], 10) || 1));
+      return { product: byCode.get(m[1].toLowerCase()) ?? null, qty };
+    }
+    return { product: byCode.get(raw.toLowerCase()) ?? null, qty: 1 };
+  }, [idInput, byCode]);
+  const preview = parsedInput.product;
 
   const browse = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -112,17 +124,16 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
   }
 
   function handleIdAdd() {
-    const code = idInput.trim().toLowerCase();
-    if (!code) {
+    const raw = idInput.trim();
+    if (!raw) {
       toast.error("Please enter a Product ID.");
       return;
     }
-    const p = byCode.get(code);
-    if (!p) {
+    if (!parsedInput.product) {
       toast.error("Product not found. Check the ID and try again.");
       return;
     }
-    addToCart(p);
+    addToCart(parsedInput.product, parsedInput.qty);
     setIdInput("");
   }
 
@@ -232,6 +243,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
           <h1 className="font-display text-2xl font-bold sm:text-3xl">POS — New Sale</h1>
           <p className="text-sm text-muted-foreground">
             Enter Product ID → Add → Payment → Complete Sale
+            <span className="ml-2 hidden rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-primary md:inline">
+              Tip: “101*3” adds 3 at once
+            </span>
           </p>
         </div>
       </div>
@@ -258,7 +272,7 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                       handleIdAdd();
                     }
                   }}
-                  placeholder="e.g. 101"
+                  placeholder="e.g. 101 · or 101*3 for qty"
                   inputMode="text"
                   autoFocus
                   autoComplete="off"
@@ -288,8 +302,17 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
                   <div className="min-w-0">
                     <p className="truncate font-display text-lg font-bold">{preview.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-bold text-primary">{formatPKR(preview.price)}</span>
-                      {" · Available: "}
+                      {parsedInput.qty > 1 ? (
+                        <>
+                          <span className="font-bold text-primary">{parsedInput.qty} × {formatPKR(preview.price)}</span>
+                          {" = "}
+                          <span className="font-bold text-primary">{formatPKR(preview.price * parsedInput.qty)}</span>
+                          {" · "}
+                        </>
+                      ) : (
+                        <span className="font-bold text-primary">{formatPKR(preview.price)}</span>
+                      )}
+                      {"Available: "}
                       <span className="font-bold text-foreground">{preview.stock}</span>
                       {" · "}
                       {preview.category}

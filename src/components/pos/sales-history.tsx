@@ -14,17 +14,22 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaymentBadge } from "@/components/pos/shared";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
+import { ZReportDialog } from "@/components/pos/z-report";
 import { api } from "@/lib/api";
 import { downloadCSV, todayStamp } from "@/lib/csv";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Sale } from "@/lib/types";
+import { useSession } from "@/lib/store";
+import type { Sale, Stats } from "@/lib/types";
 
 export function SalesHistory() {
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"today" | "all">("today");
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportStats, setReportStats] = useState<Stats | null>(null);
+  const userName = useSession((s) => s.user?.name ?? "Staff");
 
   // Initial load — setState happens in promise callbacks
   useEffect(() => {
@@ -86,6 +91,23 @@ export function SalesHistory() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!reportStats) {
+                const tzOffset = new Date().getTimezoneOffset();
+                api<Stats>(`/api/stats?tzOffset=${tzOffset}`)
+                  .then(setReportStats)
+                  .catch(() => toast.error("Could not load today's report."));
+              }
+              setReportOpen(true);
+            }}
+            className="gap-2 border-primary/30 font-bold text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            <ScrollText className="h-4 w-4" />
+            End-of-Day Report
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -237,6 +259,14 @@ export function SalesHistory() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* End-of-day report dialog */}
+      <ZReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        stats={reportStats}
+        closedBy={userName}
+      />
     </div>
   );
 }

@@ -60,6 +60,31 @@ export interface TrendPoint {
   count: number;
 }
 
+/** Best seller row (all-time units sold, from Product.soldQuantity). */
+export interface TopProduct {
+  id: number;
+  productId: string;
+  name: string;
+  category: string;
+  price: number;
+  soldQuantity: number;
+}
+
+/** Aggregated item line for today's end-of-day report. */
+export interface ReportTopItem {
+  name: string;
+  quantity: number;
+  revenue: number;
+}
+
+/** Extra figures for the printable end-of-day (Z) report. */
+export interface DayReport {
+  cashCount: number;
+  onlineCount: number;
+  changeGiven: number;
+  topItems: ReportTopItem[];
+}
+
 export interface Stats {
   todaySales: number;
   salesTodayCount: number;
@@ -72,6 +97,8 @@ export interface Stats {
   lowStock: Product[];
   recentSales: Sale[];
   trend: TrendPoint[];
+  topProducts: TopProduct[];
+  report: DayReport;
 }
 
 export interface ImportRow {

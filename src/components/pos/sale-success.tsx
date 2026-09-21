@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Printer } from "lucide-react";
+import { CheckCircle2, Printer, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Receipt, printReceipt } from "@/components/pos/receipt";
 import { formatPKR } from "@/lib/format";
@@ -32,8 +32,13 @@ export function SaleSuccess({ sale, onNewSale }: { sale: Sale; onNewSale: () => 
         Thank you — the transaction has been recorded.
       </p>
 
-      {/* Receipt preview */}
+      {/* Receipt preview with a playful tear-here line */}
       <div className="mt-6 w-full">
+        <div aria-hidden className="mx-auto mb-3 flex max-w-[300px] items-center gap-2">
+          <div className="h-px flex-1 border-t border-dashed border-foreground/25" />
+          <Scissors className="h-3.5 w-3.5 -scale-x-100 text-muted-foreground/50" />
+          <div className="h-px flex-1 border-t border-dashed border-foreground/25" />
+        </div>
         <Receipt sale={sale} className="shadow-md" />
       </div>
 

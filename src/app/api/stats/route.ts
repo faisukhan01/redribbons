@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const dayStart = Math.floor((now - tzOffset * 60_000) / 86_400_000) * 86_400_000 + tzOffset * 60_000;
     const since = new Date(dayStart);
 
-    const [todayAgg, cashAgg, onlineAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales] =
+    const [todayAgg, cashAgg, onlineAgg, cashCountAgg, onlineCountAgg, changeAgg, itemsAgg, productsCount, stockAgg, recent, lowStock, weekSales, topProductsRaw, todayItems] =
       await Promise.all([
         db.sale.aggregate({
           _sum: { total: true },
@@ -28,6 +28,19 @@ export async function GET(req: Request) {
         db.sale.aggregate({
           _sum: { total: true },
           where: { createdAt: { gte: since }, paymentMethod: "ONLINE" },
+        }),
+        // Z-report extras: transaction counts per method + change handed back today
+        db.sale.aggregate({
+          _count: true,
+          where: { createdAt: { gte: since }, paymentMethod: "CASH" },
+        }),
+        db.sale.aggregate({
+          _count: true,
+          where: { createdAt: { gte: since }, paymentMethod: "ONLINE" },
+        }),
+        db.sale.aggregate({
+          _sum: { changeReturned: true },
+          where: { createdAt: { gte: since } },
         }),
         db.saleItem.aggregate({
           _sum: { quantity: true },
@@ -49,6 +62,18 @@ export async function GET(req: Request) {
         db.sale.findMany({
           where: { createdAt: { gte: new Date(dayStart - 6 * 86_400_000) } },
           select: { total: true, createdAt: true },
+        }),
+        // Best sellers (all-time units sold) for the dashboard strip
+        db.product.findMany({
+          where: { soldQuantity: { gt: 0 } },
+          orderBy: { soldQuantity: "desc" },
+          take: 6,
+          select: { id: true, productId: true, name: true, category: true, price: true, soldQuantity: true },
+        }),
+        // Today's item lines for the end-of-day report top sellers
+        db.saleItem.findMany({
+          where: { sale: { createdAt: { gte: since } } },
+          select: { name: true, quantity: true, subtotal: true },
         }),
       ]);
 
@@ -76,6 +101,19 @@ export async function GET(req: Request) {
       return { date, label: weekday[new Date(ms).getUTCDay()], total: b.total, count: b.count };
     });
 
+    // Group today's item lines by product name for the Z-report
+    const itemMap = new Map<string, { quantity: number; revenue: number }>();
+    for (const it of todayItems) {
+      const cur = itemMap.get(it.name) ?? { quantity: 0, revenue: 0 };
+      cur.quantity += it.quantity;
+      cur.revenue += it.subtotal;
+      itemMap.set(it.name, cur);
+    }
+    const topItems = Array.from(itemMap.entries())
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue)
+      .slice(0, 5);
+
     const stats: Stats = {
       todaySales: todayAgg._sum.total ?? 0,
       salesTodayCount: todayAgg._count,
@@ -88,6 +126,13 @@ export async function GET(req: Request) {
       lowStock,
       recentSales: recent,
       trend,
+      topProducts: topProductsRaw,
+      report: {
+        cashCount: cashCountAgg._count,
+        onlineCount: onlineCountAgg._count,
+        changeGiven: changeAgg._sum.changeReturned ?? 0,
+        topItems,
+      },
     };
     return NextResponse.json(stats);
   } catch (err) {
