@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
  */
 
 const USERS = [
-  { username: "abdullah", name: "Abdullah", role: "OWNER", pin: "1234" },
+  { username: "abaid", name: "Abaid Ullah", role: "OWNER", pin: "1234" },
   { username: "ahmed", name: "Ahmed", role: "SALESMAN", pin: "1111" },
 ];
 

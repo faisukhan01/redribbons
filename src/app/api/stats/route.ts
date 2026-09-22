@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic"; // POS data must never be cached/prerendered
 import { db } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 import type { Stats } from "@/lib/types";

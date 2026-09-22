@@ -325,7 +325,7 @@ export function OwnerDashboard({ onNavigate }: { onNavigate: (v: View) => void }
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
-            {greeting()}, Abdullah
+            {greeting()}, {userName}
           </h1>
           <p className="text-sm text-muted-foreground">{formatDate(new Date().toISOString())} · Here is how the bakery is doing today.</p>
         </div>
