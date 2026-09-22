@@ -69,9 +69,8 @@ export function AccountDialog({
             Account — Change PIN
           </DialogTitle>
           <DialogDescription>
-            Signed in as <span className="font-semibold text-foreground">{user.name}</span> (
-            {user.role === "OWNER" ? "Owner" : "Salesman"}). Pick a PIN you can remember at the
-            counter.
+            Signed in as <span className="font-semibold text-foreground">{user.name}</span>
+            {user.role === "OWNER" ? " (Owner)" : ""}. Pick a PIN you can remember at the counter.
           </DialogDescription>
         </DialogHeader>
 

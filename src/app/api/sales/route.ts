@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"; // POS data must never be cached/prerend
 import { db } from "@/lib/db";
 import { ensureSeed } from "@/lib/seed";
 
-// GET /api/sales?limit=100&salesman=Ahmed&since=<iso|ms>
+// GET /api/sales?limit=100&salesman=Salesman&since=<iso|ms>
 export async function GET(req: Request) {
   try {
     await ensureSeed();

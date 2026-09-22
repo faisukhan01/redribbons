@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 
 const USERS = [
   { username: "abaid", name: "Abaid Ullah", role: "OWNER", pin: "1234" },
-  { username: "ahmed", name: "Ahmed", role: "SALESMAN", pin: "1111" },
+  { username: "salesman", name: "Salesman", role: "SALESMAN", pin: "1111" },
 ];
 
 let seedPromise: Promise<void> | null = null;

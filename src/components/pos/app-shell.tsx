@@ -86,10 +86,12 @@ export function AppShell({
             >
               <div className="hidden sm:block">
                 <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
-                <p className="flex items-center justify-end gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {user.role === "OWNER" ? <Crown className="h-3 w-3 text-primary" /> : null}
-                  {user.role === "OWNER" ? "Owner" : "Salesman"}
-                </p>
+                {user.role === "OWNER" ? (
+                  <p className="flex items-center justify-end gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Crown className="h-3 w-3 text-primary" />
+                    Owner
+                  </p>
+                ) : null}
               </div>
               <KeyRound className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
             </button>
