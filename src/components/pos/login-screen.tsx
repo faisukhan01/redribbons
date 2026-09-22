@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Crown, Delete, ShoppingBag } from "lucide-react";
+import { Crown, Delete, ShieldCheck, ShoppingBag } from "lucide-react";
 import { BrandLockup } from "@/components/pos/brand";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -224,12 +224,15 @@ export function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void 
         </div>
       </div>
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">
-        Demo access — Owner PIN: 1234 · Salesman PIN: 1111
-        <span className="mt-1 block text-[10px] opacity-70">
+      <div className="mt-6 flex flex-col items-center gap-1.5">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+          Secure staff access — enter your PIN to continue
+        </p>
+        <span className="text-[10px] text-muted-foreground/70">
           You can also type the PIN on your keyboard
         </span>
-      </p>
+      </div>
       <p className="mt-3 flex items-center gap-1.5 rounded-full border bg-card/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 shadow-sm">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         Red Ribbons POS · v1.1

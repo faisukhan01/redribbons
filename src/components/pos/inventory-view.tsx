@@ -180,7 +180,9 @@ export function InventoryView() {
           <div className="p-10 text-center">
             <TrendingUp className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm text-muted-foreground">
-              No products match your search.
+              {query.trim() || category !== "all"
+                ? "No products match your search."
+                : "No stock yet — add products to start tracking inventory."}
             </p>
           </div>
         ) : (

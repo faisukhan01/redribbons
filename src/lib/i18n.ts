@@ -49,6 +49,7 @@ const UR: Record<string, string> = {
   noProductFound: "اس آئی ڈی کا کوئی پروڈکٹ نہیں ملا — دوبارہ کوشش کریں۔",
   loadingProducts: "پروڈکٹس لوڈ ہو رہے ہیں…",
   noProductsMatch: "تلاش سے کوئی پروڈکٹ نہیں ملا۔",
+  noProductsYet: "کیٹلاگ خالی ہے — مالک ابھی تک پروڈکٹس شامل نہیں کیا۔",
   // cart
   currentSale: "موجودہ سیل",
   cartEmpty: "کارٹ خالی ہے",
@@ -208,6 +209,7 @@ const EN: Record<string, string> = {
   noProductFound: "No product found with this ID — check and try again.",
   loadingProducts: "Loading products…",
   noProductsMatch: "No products match your search.",
+  noProductsYet: "The catalogue is empty — no products have been added yet.",
   currentSale: "Current Sale",
   cartEmpty: "Cart is empty",
   cartEmptyHint: "Enter a Product ID or tap a product tile to start",

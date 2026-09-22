@@ -553,7 +553,9 @@ export function PosView({ salesmanName }: { salesmanName: string }) {
               </div>
             ) : browse.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                {t("noProductsMatch")}
+                {products.length === 0 && !search.trim() && category === "all"
+                  ? t("noProductsYet")
+                  : t("noProductsMatch")}
               </p>
             ) : (
               <div className="rr-scroll mt-3 grid max-h-[38vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:max-h-[42vh] xl:grid-cols-4">

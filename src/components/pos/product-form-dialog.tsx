@@ -147,7 +147,7 @@ export function ProductFormDialog({
               id="pf-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Fresh Bread"
+              placeholder="e.g. Chocolate Cake"
             />
           </div>
 
