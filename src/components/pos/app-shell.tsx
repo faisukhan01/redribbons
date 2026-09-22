@@ -77,24 +77,32 @@ export function AppShell({
           </nav>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAccountOpen(true)}
-              className="group flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1.5 text-right transition-colors hover:border-border hover:bg-muted sm:px-2.5"
-              aria-label="Account settings — change PIN"
-              title="Account — change PIN"
-            >
-              <div className="hidden sm:block">
-                <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
-                {user.role === "OWNER" ? (
+            {user.role === "OWNER" ? (
+              <button
+                type="button"
+                onClick={() => setAccountOpen(true)}
+                className="group flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1.5 text-right transition-colors hover:border-border hover:bg-muted sm:px-2.5"
+                aria-label="Account settings — change PIN"
+                title="Account — change PIN"
+              >
+                <div className="hidden sm:block">
+                  <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
                   <p className="flex items-center justify-end gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <Crown className="h-3 w-3 text-primary" />
                     Owner
                   </p>
-                ) : null}
+                </div>
+                <KeyRound className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
+              </button>
+            ) : (
+              <div
+                className="flex items-center px-1.5 py-1.5 sm:px-2.5"
+                aria-label="Signed in as Salesman"
+                title="Salesman"
+              >
+                <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
               </div>
-              <KeyRound className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
-            </button>
+            )}
             {user.role === "OWNER" ? (
               <button
                 type="button"
@@ -120,8 +128,10 @@ export function AppShell({
         </div>
       </header>
 
-      {/* Account (change PIN) dialog */}
-      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} user={user} />
+      {/* Account (change PIN) dialog — owner only */}
+      {user.role === "OWNER" ? (
+        <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} user={user} />
+      ) : null}
 
       {/* Receipt details (owner) */}
       {user.role === "OWNER" ? (

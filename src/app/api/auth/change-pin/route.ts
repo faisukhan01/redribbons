@@ -41,6 +41,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // Only the owner may change a PIN. Salesman accounts are locked —
+    // the PIN is set by the shop owner and cannot be changed at the counter.
+    if (user.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Only the owner can change a PIN." },
+        { status: 403 }
+      );
+    }
+
     await db.user.update({ where: { username }, data: { pin: newPin } });
     return NextResponse.json({ ok: true });
   } catch (err) {
