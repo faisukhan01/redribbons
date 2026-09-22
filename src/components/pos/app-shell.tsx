@@ -100,7 +100,7 @@ export function AppShell({
                 aria-label="Signed in as Salesman"
                 title="Salesman"
               >
-                <p className="text-sm font-bold leading-tight text-foreground">{user.name}</p>
+                <p className="text-sm font-bold leading-tight text-foreground">Salesman</p>
               </div>
             )}
             {user.role === "OWNER" ? (

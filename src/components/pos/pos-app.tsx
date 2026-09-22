@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { BrandLockup } from "@/components/pos/brand";
 import { AppShell, type View } from "@/components/pos/app-shell";
 import { LoginScreen } from "@/components/pos/login-screen";
@@ -10,8 +10,9 @@ import { SalesHistory } from "@/components/pos/sales-history";
 import { ProductsView } from "@/components/pos/products-view";
 import { PosView } from "@/components/pos/pos-view";
 import { OrdersView } from "@/components/pos/orders-view";
+import { api } from "@/lib/api";
 import { useSession } from "@/lib/store";
-import type { SessionUser } from "@/lib/types";
+import { displayName, type SessionUser } from "@/lib/types";
 
 const emptySubscribe = () => () => {};
 
@@ -32,6 +33,28 @@ export function PosApp() {
     () => true,
     () => false
   );
+
+  // Self-heal persisted sessions: a device may still hold an old cached user
+  // (e.g. the salesman account was renamed). Silently refresh it from the
+  // server on load — no logout needed. Fails silently when offline.
+  useEffect(() => {
+    const cached = useSession.getState().user;
+    if (!cached) return;
+    let cancelled = false;
+    api<{ user: SessionUser }>(`/api/auth/session?role=${cached.role}`)
+      .then((data) => {
+        if (cancelled || !data.user) return;
+        const u = data.user;
+        const cur = useSession.getState().user;
+        if (cur && (u.username !== cur.username || u.name !== cur.name || u.role !== cur.role)) {
+          useSession.getState().setUser(u);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!mounted) {
     return (
@@ -70,11 +93,13 @@ export function PosApp() {
       {view === "orders" ? (
         <OrdersView
           role={user.role}
-          createdBy={user.name}
+          createdBy={displayName(user)}
           onNavigate={(v) => setView(v)}
         />
       ) : null}
-      {view === "pos" && user.role === "SALESMAN" ? <PosView salesmanName={user.name} /> : null}
+      {view === "pos" && user.role === "SALESMAN" ? (
+        <PosView salesmanName={displayName(user)} />
+      ) : null}
     </AppShell>
   );
 }

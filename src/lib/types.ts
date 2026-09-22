@@ -8,6 +8,16 @@ export interface SessionUser {
   role: Role;
 }
 
+/**
+ * The name to show in the UI / stamp on records. The salesman account is
+ * ALWAYS displayed as the generic "Salesman" — never a personal name — even
+ * if a device still holds an old persisted session (localStorage) with a
+ * stale name. The owner keeps their real name.
+ */
+export function displayName(user: Pick<SessionUser, "name" | "role">): string {
+  return user.role === "SALESMAN" ? "Salesman" : user.name;
+}
+
 export interface Product {
   id: number;
   productId: string;

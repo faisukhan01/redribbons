@@ -22,7 +22,7 @@ import { useShopSettings } from "@/lib/settings";
 import { formatDateTime, formatNumber, formatPKR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/lib/store";
-import type { Sale, Stats } from "@/lib/types";
+import { displayName, type Sale, type Stats } from "@/lib/types";
 
 export function SalesHistory() {
   const [sales, setSales] = useState<Sale[] | null>(null);
@@ -38,7 +38,10 @@ export function SalesHistory() {
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStats, setReportStats] = useState<Stats | null>(null);
-  const userName = useSession((s) => s.user?.name ?? "Staff");
+  // "Salesman" for the salesman role — never a personal name (even from an
+  // old cached session); the owner keeps their real name.
+  const sessionUser = useSession((s) => s.user);
+  const userName = sessionUser ? displayName(sessionUser) : "Staff";
 
   // Initial load — setState happens in promise callbacks
   useEffect(() => {
